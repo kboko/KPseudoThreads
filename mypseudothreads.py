@@ -141,11 +141,14 @@ class MyPseudoThreads(Logging):
     
     def add_timer_thread(self, name, after_ms, function, args):
         #return None
-        when = int(round(time.time() * 1000)) + after_ms
+        when = time.time_ns() + after_ms * 1000000
         
         new_thread = MyPseudoThread(name, None, function, args, when)
         self.threads_timer.append(new_thread)
-        sorted(self.threads_timer, key=lambda t: t.time, reverse=True) 
+
+        self.threads_timer = sorted(self.threads_timer, key=lambda t: t.time) 
+
+        
         if self.debug: self.Log(LOG_DBG,"{}: Adding t-thread {} AFTER=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),after_ms, name, function.__name__, args, hex(id(self))))
         return new_thread
         
@@ -205,11 +208,11 @@ class MyPseudoThreads(Logging):
         while self.stop != True:
             outputs = []
             inputs = []
-            timeout = 1
             events=[]
+            """
             if True:
-                now = int(round(time.time() * 1000)) 
-                """self.Log(LOG_DBG,"DUMP START R{} W{} E{} TIMER {}".format ([t.socket.fileno() for t in self.threads_read] , [t.socket.fileno() for t in self.threads_write], [t.socket.fileno() for t in self.threads_exec], [t.time-now for t in self.threads_timer]))"""
+                now = time.time_ns() * 1000 
+                self.Log(LOG_DBG,"DUMP START R{} W{} E{} TIMER {}".format ([t.socket.fileno() for t in self.threads_read] , [t.socket.fileno() for t in self.threads_write], [t.socket.fileno() for t in self.threads_exec], [t.time-now for t in self.threads_timer]))"""
             
             # handle events
             for e in self.threads_exec:
@@ -231,14 +234,14 @@ class MyPseudoThreads(Logging):
                 if self.debug: self.Log(LOG_DBG,"{}: No threads to add - exiting".format (self.mpt_name))
                 break
             if (len(self.threads_timer)):
-                now = int(round(time.time() * 1000)) 
-                e_time = self.threads_timer[-1].time
-                time_out = float((e_time - now))/1000
+                now = time.time_ns()
+                e_time = self.threads_timer[0].time
+                time_out = e_time - now
                 if time_out < 0:
                     time_out = 0
                 """ self.Log(LOG_DBG,"SELECT {} {} {} TIME {}".format ([t.fileno() for t in inputs], [t.fileno() for t in outputs], [t.fileno() for t in events], (e_time - now)/1000))"""
                 try:
-                    readable, writable, exceptional = select.select(inputs, outputs, events, time_out)
+                    readable, writable, exceptional = select.select(inputs, outputs, events, time_out/1000000000)
                 except Exception as msg:
                     self.Log(LOG_ERR, str(msg))
                     pass
@@ -252,7 +255,7 @@ class MyPseudoThreads(Logging):
                     pass
                 """ self.Log(LOG_DBG,"SELECT_AFTER {} {} {}".format ([t.fileno() for t in readable], [t.fileno() for t in writable], [t.fileno() for t in exceptional]))
                 """
-                
+            writable_changed = False   
             #now write threads - make copy and interate
             if len (writable):
                 for fd in writable:
@@ -260,12 +263,14 @@ class MyPseudoThreads(Logging):
                         if e.socket == fd and e.to_delete != True:
                             if self.debug: self.Log(LOG_DBG,"{}: Run w-thr {} {}".format(self.mpt_name,e.function.__name__, hex(id(e))))
                             e.to_delete = True
+                            writable_changed = True
                             e.function(e, e.args)
                             if self.debug: self.Log(LOG_DBG,"{}: After w-thr {} {} TODEL".format(self.mpt_name, e.function.__name__, hex(id(e))))
                             """in case the thread add new read thread for same socket
                             we make cancel as we do not want read thread to be executed twice
                             """
                             break
+            readable_changed = False
             if len (readable):
                 #now read threads
                 for fd in readable:
@@ -273,9 +278,11 @@ class MyPseudoThreads(Logging):
                         if e.socket == fd and e.to_delete != True:
                             if self.debug: self.Log(LOG_DBG,"{}: Run r-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                             e.to_delete = True
+                            readable_changed = True
                             e.function(e, e.args)
                             if self.debug: self.Log(LOG_DBG,"{}: After Run r-thr {} {} TODEL".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                             break
+            exceptional_changed = False
             if len (exceptional):            
                 #now error threads
                 for fd in exceptional:
@@ -283,27 +290,43 @@ class MyPseudoThreads(Logging):
                         if e.socket == fd and e.to_delete != True:
                             if self.debug: self.Log(LOG_DBG,"{}: Run e-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                             e.to_delete = True
+                            exceptional_changed = True
                             e.function(e, e.args)
                             if self.debug: self.Log(LOG_DBG,"{}: After e-thr {} {} DEL".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                             break
+            timer_changed = False
+            now = None
+            if len (self.threads_timer):
+                # handle late threads
+                for e in self.threads_timer:
 
-            # handle timer threads
-            now = int(round(time.time() * 1000)) 
-            # handle late threads
-            for e in self.threads_timer:
-                if (now >= e.time ) and e.to_delete != True:
-                    if self.debug: self.Log(LOG_DBG,"{}: Run t-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
-                    e.to_delete = True
-                    e.function(e, e.args)
-      
-            self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
-            self.threads_write = [item for item in self.threads_write if item.to_delete != True]
-            self.threads_error = [item for item in self.threads_error if item.to_delete != True]
-            self.threads_timer = [item for item in self.threads_timer if item.to_delete != True]
+                    if e.to_delete == True:
+                        continue
+                    #thread is in the future or now is not taken - update now   
+                    # the previour thread may have taken so much time, that the next is now to be executed
+                    if now == None or now < e.time:
+                        now = time.time_ns()
+                    if (now >= e.time ):
+                        if self.debug: self.Log(LOG_DBG,"{}: Run t-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
+                        e.to_delete = True
+                        timer_changed = True
+                        e.function(e, e.args)
+                    else:
+                        break
+
+            if writable_changed:
+                self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
+            if readable_changed:
+                self.threads_write = [item for item in self.threads_write if item.to_delete != True]
+            if exceptional_changed:
+                self.threads_error = [item for item in self.threads_error if item.to_delete != True]
+            if timer_changed:
+                self.threads_timer = [item for item in self.threads_timer if item.to_delete != True]
             """
             if True:
-                now = int(round(time.time() * 1000)) 
+                now = time.time_ns() * 1000 
                 self.Log(LOG_DBG,"DUMP END R{} W{} E{} TIMER {}".format ([hex(id(t)) for t in self.threads_read] , [t.socket.fileno() for t in self.threads_write], [t.socket.fileno() for t in self.threads_exec], [t.time-now for t in self.threads_timer]))"""
+
 
 """ 
 This Class starts PseudoThreads in real Thread
@@ -452,5 +475,4 @@ class MyTask (MyPseudoThreads, threading.Thread):
         pass       
     
     def child_send_msg_to_parent(self, msg):
-        return self.pipe_child_to_parent.send( MY_T_USER + msg) 
-    
+        return self.pipe_child_to_parent.send( MY_T_USER + msg)
