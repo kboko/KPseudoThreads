@@ -305,5 +305,152 @@ class MyPseudoThreads(Logging):
                 now = int(round(time.time() * 1000)) 
                 self.Log(LOG_DBG,"DUMP END R{} W{} E{} TIMER {}".format ([hex(id(t)) for t in self.threads_read] , [t.socket.fileno() for t in self.threads_write], [t.socket.fileno() for t in self.threads_exec], [t.time-now for t in self.threads_timer]))"""
 
+""" 
+This Class starts PseudoThreads in real Thread
+Note the functions are called in the Context of the Parent or the Child
 
+Parent Uses:
+
+- Create new Task
+task = MyTask()
+
+- sending messages to the Child Process 
+task.send_msg_2_child(msg)
+
+- ask the Child to stop
+task.task_stop()
+
+- add function to be called then a new message from the client is received.
+task.add_hook_for_msgs_from_child_() 
+This function is only used if the Parent is MyPseudoThreads. If not the Parent 
+must imprement processing the messages from the pipe "pipe_parent_from_child" or close
+this pipe
+
+The Child:
+
+Implements the follwing functions
+
+child_started_hook - here is init work done - user may add read/timer/write threads, open sockets etc.
+child_send_msg_to_parent - send messages to the Parent
+child_pre_stop_hook - called when no threads exists and the client is going to stop
+child_process_msg_from_parent_hook  messages from the parent are processed here
+
+
+"""
+           
+class MyTask (MyPseudoThreads, threading.Thread):
+    # Client is ending
+    MY_C_END = b"\x01" 
+    # Parent asks the child to stop
+    MY_T_STOP = b"\x02"
+    # User defined messages
+    MY_T_USER = b"\x03"
+
+    # INIT functions:
+    def __init__(self, task_name, log_level, log_facility, debug=None):
+        super(MyTask, self).__init__(thread_name, log_level, log_facility, debug)
+        self.task_name = task_name
+        self.debug = debug
+        self.from_child_hook = None
+        #two pipes for communication
+        self.pipe_parent_to_child, self.pipe_child_from_parent = Pipe()
+        self.pipe_child_to_parent, self.pipe_parent_from_child = Pipe()
+        if self.debug: 
+            self.Log(LOG_DBG, "{}: Created. Pipes Parent{}->Child{} Child{}->Parent{}".format(self.task_name, hex(id(self)) ,self.pipe_parent_to_child.fileno(), \
+                        self.pipe_child_from_parent.fileno(), self.pipe_child_to_parent.fileno(), self.pipe_parent_from_child.fileno()))
+        self.setDaemon(True)
+    
+    # FUNCTIONS CALLED FROM PARENT CONTEXT
+    def _internal_msg_from_child(self, parent):
+        msg = None
+        try:
+            msg = self.pipe_parent_from_child.recv()
+        except:
+            pass
+
+        if not msg or msg == MyTask.MY_C_END:
+            self.join()
+            self.debug: self.Log(LOG_DBG, "{}: Child Ended. Close {} {}".format (self.task_name, self.pipe_parent_to_child, self.pipe_parent_from_child))
+            self.pipe_parent_to_child.close()
+            self.pipe_parent_from_child.close()
+        
+        if msg and self.from_child_hook:
+            self.from_child_hook(msg[1:s])
+        
+        if msg and msg != MyTask.MY_C_END:
+            # add read thread again
+            parent.add_read_thread (self.task_name, self.pipe_parent_from_child, self._int_msg_from_child, parent)
+
+    # Parent use those below:        
+    
+    """ send_msg_2_child - The Parent can send data to the child"""
+    def send_msg_2_child(self, msg):
+        self.debug: self.Log(LOG_DBG, "{}: {} msg_to_child {}".format (self.task_name, hex(id(self)), msg))
+        return self.pipe_parent_to_child.send(MyTask.MY_T_USER + msg)
+    
+    """ send notification to the child to stop"""
+    def task_stop(self):
+        self.msg_to_child(MyTask.MY_T_STOP)
+    
+    # if Parent is MyPseudoThreads - add thread to process msgs from child
+    def add_hook_for_msgs_from_child_(self, parent, function): 
+        self.from_child_hook = function
+        parent.add_read_thread (self.task_name, self.pipe_parent_from_child, self._internal_msg_from_child, parent)
+        pass
+    
+
+
+
+    # FUNCTIONS CALLED INSIDE CHILD CONTEXT
+    def run(self):
+        if self.debug: 
+            if self.debug: self.Log(LOG_DBG,"{}: Started".format(self.task_name,  hex(id(self))))
+        
+    def task_post_start(self):
+        pass   
+
+        # this thread is for messages from the Parent
+        msg_from_parent_thread = self.add_read_thread ("{}: {}: MSG_from_parent", self.task_name, self.pipe_child_from_parent, self._internal_msg_from_parent, self)
+        
+        self.threads_run();
+
+        self.child_pre_stop_hook()
+        if self.debug: self.Log("{}: {} closing {} {}".format(self.task_name, hex(id(self)), self.pipe_child_to_parent.fileno(), self.pipe_child_from_parent.fileno()))
+
+        # send the MSG and close
+        self.msg_to_parent(MyTask.MY_C_END)
+        self.pipe_child_to_parent.close()
+        
+        """No threads anymore"""
+        self.cancel_thread (msg_from_parent_thread)
+        self.pipe_child_from_parent.close()
+
+        if self.debug: self.Log("{}: {} ended".format(self.task_name, hex(id(self))))
+
+    def _internal_msg_from_parent(self, arg):
+        stop = False
+        msg = self.pipe_child_from_parent.recv()
+        # call child funciton
+        if self.child_process_msg_from_parent_hook (msg) == MyTask.MY_T_STOP or msg == MyTask.MY_T_STOP:
+            self.threads_stop()
+            if self.debug: self.Log("{}: Stopping Child", self.task_name,)
+        else:
+            # add read thread again
+            self.add_read_thread ("pipe_child_from_parent", self.pipe_child_from_parent, self._internal_msg_from_parent, self)
+
+    # Virtual functons
+    def child_started_hook(self):
+        if self.debug: self.Log(LOG_DBG,"{}: child_started_hook - Implement me".format(self.task_name))
+        pass   
+           
+    def child_pre_stop_hook(self):
+        if self.debug: self.Log(LOG_DBG,"{}: child_pre_stop_hook - Implement me".format(self.task_name))
+        pass 
+        
+    def child_process_msg_from_parent_hook(self, msg):
+        if self.debug: self.Log(LOG_DBG,"{}: child_process_msg_from_parent_hook- Implement me".format(self.task_name))
+        pass       
+    
+    def child_send_msg_to_parent(self, msg):
+        return self.pipe_child_to_parent.send( MY_T_USER + msg) 
     
