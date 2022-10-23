@@ -44,6 +44,7 @@ SOFTWARE."""
 
  *
 """
+import bisect
 import datetime
 import select
 import os
@@ -91,6 +92,10 @@ class MyPseudoThread():
         self.time = time
         self.function = function
         self.to_delete = False
+    
+    def __lt__(self, b):
+        return self.time < b.time
+
     
 class MyPseudoThreads(Logging): 
     def __init__(self, name, log_level, log_facility, debug=None):
@@ -144,10 +149,12 @@ class MyPseudoThreads(Logging):
         when = time.time_ns() + after_ms * 1000000
         
         new_thread = MyPseudoThread(name, None, function, args, when)
-        self.threads_timer.append(new_thread)
+        
+        bisect.insort(self.threads_timer, new_thread) 
 
-        self.threads_timer = sorted(self.threads_timer, key=lambda t: t.time) 
-
+        #self.threads_timer.append(new_thread)
+        #self.threads_timer = sorted(self.threads_timer, key=lambda t: t.time) 
+        
         
         if self.debug: self.Log(LOG_DBG,"{}: Adding t-thread {} AFTER=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),after_ms, name, function.__name__, args, hex(id(self))))
         return new_thread
