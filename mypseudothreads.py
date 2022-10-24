@@ -400,7 +400,7 @@ class MyTask (MyPseudoThreads, threading.Thread):
 
         if not msg or msg == MyTask.MY_C_END:
             self.join()
-            self.debug: self.Log(LOG_DBG, "{}: Child Ended. Close {} {}".format (self.task_name, self.pipe_parent_to_child, self.pipe_parent_from_child))
+            if self.debug: self.Log(LOG_DBG, "{}: Child Ended. Close {} {}".format (self.task_name, self.pipe_parent_to_child, self.pipe_parent_from_child))
             self.pipe_parent_to_child.close()
             self.pipe_parent_from_child.close()
         
@@ -415,7 +415,7 @@ class MyTask (MyPseudoThreads, threading.Thread):
     
     """ send_msg_2_child - The Parent can send data to the child"""
     def send_msg_2_child(self, msg):
-        self.debug: self.Log(LOG_DBG, "{}: {} msg_to_child {}".format (self.task_name, hex(id(self)), msg))
+        if self.debug: self.Log(LOG_DBG, "{}: {} msg_to_child {}".format (self.task_name, hex(id(self)), msg))
         return self.pipe_parent_to_child.send(MyTask.MY_T_USER + msg)
     
     """ send notification to the child to stop"""
