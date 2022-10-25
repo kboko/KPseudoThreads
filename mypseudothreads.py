@@ -114,9 +114,17 @@ class MyPseudoThreads(Logging):
     def add_read_thread(self, name, socket, function, args):
         
         for item in self.threads_read:
-            if item.socket == socket and item.to_delete != True:
-                self.Log(LOG_DBG,"Thread Exists")
-                return None
+            if item.socket == socket:
+                if item.to_delete != True:
+                    self.Log(LOG_DBG,"Thread Exists")
+                    return None
+                else:# reuse
+                    item.thread_name = name
+                    item.function = function
+                    item.args = args
+                    item.to_delete = False
+                    if self.debug: self.Log(LOG_DBG, "{}: Reuse r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
+                    return item
         new_thread = MyPseudoThread(name, socket, function, args)
         self.threads_read.append(new_thread)
         if self.debug: self.Log(LOG_DBG, "{}: Adding r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
@@ -125,9 +133,17 @@ class MyPseudoThreads(Logging):
     def add_write_thread(self,name, socket, function, args):
         
         for item in self.threads_write:
-            if item.socket == socket and item.to_delete != True:
-                self.Log(LOG_ERR,"Thread Exists")
-                return None
+            if item.socket == socket:
+                if item.to_delete != True:
+                    self.Log(LOG_ERR,"Thread Exists")
+                    return None
+                else:
+                    item.thread_name = name
+                    item.function = function
+                    item.args = args
+                    item.to_delete = False
+                    if self.debug: self.Log(LOG_DBG,"{}: Reuse w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket.fileno(), name, function.__name__, args, hex(id(self))))
+                    return item
         new_thread = MyPseudoThread(name, socket, function, args)
         self.threads_write.append(new_thread)
         if self.debug: self.Log(LOG_DBG,"{}: Adding w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket.fileno(), name, function.__name__, args, hex(id(self))))
@@ -136,9 +152,17 @@ class MyPseudoThreads(Logging):
     def add_error_thread(self,name, socket, function, args):
         
         for item in self.threads_error :
-            if item.socket == socket and item.to_delete != True :
-                self.Log(LOG_DBG,"Thread Exists")
-                return None
+            if item.socket == socket:
+                if item.to_delete != True :
+                    self.Log(LOG_DBG,"Thread Exists")
+                    return None
+                else:
+                    item.thread_name = name
+                    item.function = function
+                    item.args = args
+                    item.to_delete = False
+                    if self.debug: self.Log(LOG_DBG,"{}: Reuse e-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
+                    return item
         new_thread = MyPseudoThread(name, socket, function, args)
         if self.debug: self.Log(LOG_DBG,"{}: Adding e-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
         self.threads_error.append(new_thread)
