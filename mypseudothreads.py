@@ -103,7 +103,6 @@ class MyPseudoThreads(Logging):
         self.stop=False
         self.threads_read=[]
         self.threads_write=[]
-        self.threads_error=[]
         self.threads_timer=[]
         self.threads_exec=[]
         self.debug = debug
@@ -149,25 +148,6 @@ class MyPseudoThreads(Logging):
         if self.debug: self.Log(LOG_DBG,"{}: Adding w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket.fileno(), name, function.__name__, args, hex(id(self))))
         return new_thread
         
-    def add_error_thread(self,name, socket, function, args):
-        
-        for item in self.threads_error :
-            if item.socket == socket:
-                if item.to_delete != True :
-                    self.Log(LOG_DBG,"Thread Exists")
-                    return None
-                else:
-                    item.thread_name = name
-                    item.function = function
-                    item.args = args
-                    item.to_delete = False
-                    if self.debug: self.Log(LOG_DBG,"{}: Reuse e-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-                    return item
-        new_thread = MyPseudoThread(name, socket, function, args)
-        if self.debug: self.Log(LOG_DBG,"{}: Adding e-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-        self.threads_error.append(new_thread)
-        return new_thread
-    
     def add_timer_thread(self, name, after_ms, function, args):
         #return None
         when = time.time_ns() + after_ms * 1000000
@@ -206,11 +186,7 @@ class MyPseudoThreads(Logging):
                 e.to_delete = True
                 if self.debug: self.Log(LOG_DBG,"{}: Cancel w-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(e)),e.thread_name, e.function.__name__, e.args, hex(id(self))))
                 
-        for e in self.threads_error:
-            if e.socket == sock:
-                e.to_delete = True
-                if self.debug: self.Log(LOG_DBG,"{}: Cancel er-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(e)),e.thread_name, e.function.__name__, e.args, hex(id(self))))
-                
+            
         
     def threads_stop(self):
         self.stop=True    
@@ -225,9 +201,6 @@ class MyPseudoThreads(Logging):
             if hasattr(e.socket, 'closed'):
                 self.Log(LOG_DBG,"{}: R {} Sock {} closed {} func {} todel {}".format (self.mpt_name, hex(id(e)), e.socket, e.socket.closed ,    e.function.__name__, e.to_delete))
             
-        for e in self.threads_error:
-            if hasattr(e.socket, 'closed'):
-                self.Log(LOG_DBG,"{}: E {} Sock {} closed {} func {} todel {}".format (self.mpt_name, hex(id(e)), e.socket, e.socket.closed ,   e.function.__name__, e.to_delete))
         for e in self.threads_timer:    
             if hasattr(e.socket, 'closed'):
                 self.Log(LOG_DBG, "{}: T {} Sock {} closed {} time {} func {} todel {}".format (self.mpt_name, hex(id(e)), e.socket, e.socket.closed ,  e.time , e.function.__name__, e.to_delete))
@@ -239,7 +212,7 @@ class MyPseudoThreads(Logging):
         while self.stop != True:
             outputs = []
             inputs = []
-            events=[]
+            
             """
             if True:
                 now = time.time_ns() * 1000 
@@ -258,10 +231,7 @@ class MyPseudoThreads(Logging):
             for e in self.threads_read:
                 inputs.append(e.socket)    
             
-            for e in self.threads_error:
-                events.append(e.socket)   
-            
-            if len(self.threads_timer) == 0 and len(inputs) == 0 and len(outputs) == 0 and len(events) == 0:
+            if len(self.threads_timer) == 0 and len(inputs) == 0 and len(outputs) == 0:
                 if self.debug: self.Log(LOG_DBG,"{}: No threads to add - exiting".format (self.mpt_name))
                 break
             if (len(self.threads_timer)):
@@ -270,17 +240,17 @@ class MyPseudoThreads(Logging):
                 time_out = e_time - now
                 if time_out < 0:
                     time_out = 0
-                """ self.Log(LOG_DBG,"SELECT {} {} {} TIME {}".format ([t.fileno() for t in inputs], [t.fileno() for t in outputs], [t.fileno() for t in events], (e_time - now)/1000))"""
+                """ self.Log(LOG_DBG,"SELECT {} {} {} TIME {}".format ([t.fileno() for t in inputs], [t.fileno() for t in outputs], (e_time - now)/1000))"""
                 try:
-                    readable, writable, exceptional = select.select(inputs, outputs, events, time_out/1000000000)
+                    readable, writable, exceptional = select.select(inputs, outputs, [], time_out/1000000000)
                 except Exception as msg:
                     self.Log(LOG_ERR, str(msg))
                     pass
 
             else:
-                """ self.Log(LOG_DBG,"SELECT {} {} {} ".format ([t.fileno() for t in inputs], [t.fileno() for t in outputs], [t.fileno() for t in events]))"""
+                """ self.Log(LOG_DBG,"SELECT {} {} {} ".format ([t.fileno() for t in inputs], [t.fileno() for t in outputs]))"""
                 try:
-                    readable, writable, exceptional = select.select(inputs, outputs, events)
+                    readable, writable, exceptional = select.select(inputs, outputs, [])
                 except Exception as msg:
                     self.Log(LOG_ERR, str(msg))
                     pass
@@ -313,18 +283,6 @@ class MyPseudoThreads(Logging):
                             e.function(e, e.args)
                             if self.debug: self.Log(LOG_DBG,"{}: After Run r-thr {} {} TODEL".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                             break
-            exceptional_changed = False
-            if len (exceptional):            
-                #now error threads
-                for fd in exceptional:
-                    for e in self.threads_error:
-                        if e.socket == fd and e.to_delete != True:
-                            if self.debug: self.Log(LOG_DBG,"{}: Run e-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
-                            e.to_delete = True
-                            exceptional_changed = True
-                            e.function(e, e.args)
-                            if self.debug: self.Log(LOG_DBG,"{}: After e-thr {} {} DEL".format(self.mpt_name, e.function.__name__,  hex(id(e))))
-                            break
             timer_changed = False
             now = None
             if len (self.threads_timer):
@@ -349,8 +307,6 @@ class MyPseudoThreads(Logging):
                 self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
             if readable_changed:
                 self.threads_write = [item for item in self.threads_write if item.to_delete != True]
-            if exceptional_changed:
-                self.threads_error = [item for item in self.threads_error if item.to_delete != True]
             if timer_changed:
                 self.threads_timer = [item for item in self.threads_timer if item.to_delete != True]
             """
