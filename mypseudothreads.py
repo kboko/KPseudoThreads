@@ -44,7 +44,8 @@ SOFTWARE."""
 
  *
 """
-import bisect
+import heapq
+import collections
 import datetime
 import select
 import os
@@ -52,6 +53,7 @@ import time
 import threading
 from multiprocessing import Pipe
 from systemd import journal
+
 
 # those are the log levels
 LOG_CRIT=0
@@ -83,34 +85,28 @@ class Logging():
         if self.facility & LOG_SYSLOG:
             journal.send("{}.{}:{}".format (self.name, self.level, msg))
             
-class MyPseudoEpollThread():
-    EPOLL_ADD = 0
-    EPOLL_MOD = 1
-    EPOLL_DEL = 2
-    EPOLL_USE = 3
-    def __init__(self, socket):
-        self.socket = socket
-        self.epoll_flag = MyPseudoEpollThread.EPOLL_ADD
-        self.r_thr = None
-        self.w_thr = None
-    def add_thread(self,)
-    def del_thread(self,)
+class MyPseudoEpollMirror():
+    def __init__(self):
+        self.epoll_bits_new = 0
+        self.epoll_bits_old = 0
 
 
 class MyPseudoThread():
     READ = 0
-    WRITE = 0
-    EXEC = 0
-    TIMER = 0
-    def __init__(self, thread_name, thread_type, socket, function, args, time = None):
+    WRITE = 1
+    EXEC = 2
+    TIMER = 3
+    def __init__(self, thread_name, thread_type, fd, function, args, time = None):
         self.thread_type = thread_type
         self.thread_name = thread_name
-        self.socket = socket
+        self.fd = fd
         self.args = args
         self.time = time
         self.function = function
         self.to_delete = False
-
+        self.just_added = True
+    def __cmp__(self, other):
+        return self.time - b.time
     def __lt__(self, b):
         return self.time < b.time
 
@@ -120,169 +116,154 @@ class MyPseudoThreads(Logging):
     def __init__(self, name, log_level, log_facility, debug=None):
         self.mpt_name = name
         self.stop=False
-        self.threads_read_write=[]
-        self.threads_read_write_changed = False
 
+        # this is a list with MyPseudoEpollThread objects
+        self.threads_read = {}
+        self.threads_write = {}
+        
+        # for the timer threads is used heapq
         self.threads_timer=[]
-        self.threads_timer_changed=False
 
-        self.threads_exec=[]
-        self.threads_exec_changed=False
-
+        # exec threads are executed in sorted order - we use deque
+        # we need to have 
+        self.threads_exec = collections.deque()
 
         self.debug = debug
         self.epoll = select.epoll()
+        self.epoll_mirror = {}
         Logging.__init__(self, name, log_level, log_facility)
 
         self.Log(LOG_DBG, "Create threads {}".format(hex(id(self)))) 
     
-    def add_read_thread(self, name, socket, function, args):
+    def update_epoll_mirror(self, thread):
+        if thread.fd in self.epoll_mirror:
+            e = self.epoll_mirror[thread.fd] 
+        else:
+            e = MyPseudoEpollMirror()
+            self.epoll_mirror[thread.fd] = e
         
-        for rw_thread in self.threads_read_write:
-            if socket != rw_thread.socket:
-                continue
-
-            if rw_thread.r_thr:
-                if r_thr.to_delete != True:
-                    self.Log(LOG_DBG,"Thread Exists")
-                    return None
-                else:# reuse
-                    r_thr.thread_name = name
-                    r_thr.function = function
-                    r_thr.args = args
-                    r_thr.to_delete = False
-                    # we need to add it to epoll
-                    r_thr.epoll_flag = MyPseudoThreads.EPOLL_ADD
-                    if self.debug: self.Log(LOG_DBG, "{}: Reuse r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-                    self.threads_read_write_changed = True
-                    return r_thr
-            else: # we have no r_thr - so create one
-                new_thread = MyPseudoThread(name, MyPseudoThread.READ, socket, function, args)
-                rw_threads[1] = new_thread
-                if self.debug: self.Log(LOG_DBG, "{}: Adding r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-                self.threads_read_write_changed = True
-                return new_thread           
-        new_thread = MyPseudoThread(name, MyPseudoThread.READ, socket, function, args)
-        self.threads_read.append([socket, new_thread, None])
-        if self.debug: self.Log(LOG_DBG, "{}: Adding r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-        self.threads_read_write_changed = True
-        return new_thread
-
-    def update_read_thread(self, name, function, args):
-        
-        item.thread_name = name
-        item.function = function
-        item.args = args
-        item.to_delete = False
-        if self.debug: self.Log(LOG_DBG, "{}: Reuse r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-        return item
-    
-    def add_write_thread(self,name, socket, function, args):
-
-        for rw_threads in self.threads_read_write:
-            sock, r_thr, w_thr = rw_threads
+        if thread.thread_type == MyPseudoThread.READ:
+            if thread.to_delete == True:
+                e.epoll_bits_new &= ~select.EPOLLIN
+            else:
+                e.epoll_bits_new |= select.EPOLLIN
+        elif thread.thread_type == MyPseudoThread.WRITE:
+            if thread.to_delete == True:
+                e.epoll_bits_new &= ~select.EPOLLOUT
+            else:
+                e.epoll_bits_new |= select.EPOLLOUT
+        if self.debug: self.Log(LOG_DBG,"{}: Epoll Flags for fd {}, thread {} type {} = {} to_del = {}".format(self.mpt_name, thread.fd, hex(id(thread)), "R" if thread.thread_type == MyPseudoThread.READ else "W", e.epoll_bits_new, thread.to_delete))
             
-            if sock != socket:
-                continue
 
-            if w_thr:
-                if w_thr.to_delete != True:
-                    self.Log(LOG_DBG,"Thread Exists")
-                    return None
-                else:# reuse
-                    w_thr.thread_name = name
-                    w_thr.function = function
-                    w_thr.args = args
-                    w_thr.to_delete = False
-                    # we need to add it to epoll
-                    w_thr.epoll_flag = MyPseudoThreads.EPOLL_ADD
-                    if self.debug: self.Log(LOG_DBG, "{}: Reuse w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-                    self.threads_read_write_changed = True
-                    return w_thr
-            else: # we have no w_thr - so create one
-                new_thread = MyPseudoThread(name, MyPseudoThread.WRITE, socket, function, args)
-                rw_threads[2] = new_thread
-                if self.debug: self.Log(LOG_DBG, "{}: Adding w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-                self.threads_read_write_changed = True
-                return new_thread           
-        new_thread = MyPseudoThread(name, MyPseudoThread.WRITE, socket, function, args)
-        self.threads_read.append([socket, None, new_thread])
-        if self.debug: self.Log(LOG_DBG, "{}: Adding w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
-        self.threads_read_write_changed = True
-        return new_thread
+    def add_read_thread(self, name, socket, function, args):
+        fd = socket.fileno()
+        if fd in self.threads_read:
+            e = self.threads_read[fd]
+            if e.to_delete == False:
+                if self.debug: self.Log(LOG_ERR,"{}: Read Thread exists for this fd {}".format(self.mpt_name, fd))
+                return None
+            else:# reuse
+                e.function = function
+                e.args = args
+                e.name = name
+                e.to_delete = False
+                if self.debug: self.Log(LOG_ERR,"{}: Reuse {} Read Thread for fd {} {} to_del {}".format(self.mpt_name, hex(id(e)), fd, function.__name__, e.to_delete))
+                self.update_epoll_mirror(e)
+                return e
+        e = MyPseudoThread(name, MyPseudoThread.READ, fd, function, args)
+        self.threads_read[fd] = e
+        if self.debug: self.Log(LOG_ERR,"{}: Add new {} Read Thread for fd {} {}".format(self.mpt_name, hex(id(e)), fd, function.__name__))
+        self.update_epoll_mirror(e)
+        return e
         
+    def add_write_thread(self,name, socket, function, args):
+        fd = socket.fileno()
+        if fd in self.threads_write:
+            e = self.threads_write[fd]
+            if e.to_delete == False:
+                if self.debug: self.Log(LOG_ERR,"{}: Write Thread exists for this fd {}".format(self.mpt_name, fd))
+                return None
+            else:# reuse
+                e.function = function
+                e.args = args
+                e.name = name
+                e.to_delete = False
+                if self.debug: self.Log(LOG_ERR,"{}: Reuse Write Thread for fd {} {}".format(self.mpt_name, fd, function.__name__))
+                self.update_epoll_mirror(e)
+                return e
+        if self.debug: self.Log(LOG_ERR,"{}: Add Write Thread for fd {} {}".format(self.mpt_name, fd, function.__name__))
+        e = MyPseudoThread(name, MyPseudoThread.WRITE, fd, function, args)
+        self.threads_write[fd] = e
+        self.update_epoll_mirror(e)
+        return e
+
     def add_timer_thread(self, name, after_ms, function, args):
         #return None
         when = time.time_ns() + after_ms * 1000000
         
         new_thread = MyPseudoThread(name, MyPseudoThread.TIMER, None, function, args, when)
-        
-        bisect.insort(self.threads_timer, new_thread) 
 
-        #self.threads_timer.append(new_thread)
-        #self.threads_timer = sorted(self.threads_timer, key=lambda t: t.time) 
-        self.threads_timer_changed = True
-        
+        heapq.heappush(self.threads_timer, new_thread)
+
         if self.debug: self.Log(LOG_DBG,"{}: Adding t-thread {} AFTER=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),after_ms, name, function.__name__, args, hex(id(self))))
         return new_thread
-        
+    
     def add_execute_thread(self, name, function, args):
         
         new_thread = MyPseudoThread(name, MyPseudoThread.EXEC, None, function, args)
+
         self.threads_exec.append(new_thread)
         if self.debug: self.Log(LOG_DBG,"{}: Adding ex-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), name, function.__name__, args, hex(id(self))))
         return new_thread
     
+    """ Set the tread as pending delete, and set flad to update the lists
+    """
     def cancel_thread(self, thread):
+        if self.debug: self.Log(LOG_DBG,"{}: Cancel thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
         thread.to_delete = True
-        thread.epoll_flag = MyPseudoThreads.EPOLL_DEL
+        self.update_epoll_mirror(thread)
+        if thread.thread_type == MyPseudoThread.READ:
+            del self.threads_read[thread.fd]
+        if thread.thread_type == MyPseudoThread.WRITE:            
+            del self.threads_write[thread.fd]
         
-        if thread == MyPseudoThread.READ or thread == MyPseudoThread.WRITE:
-            self.threads_read_write_changed = True
-        
-        if thread == MyPseudoThread.TIMER:
-            self.threads_timer_changed = True
-
-        if thread == MyPseudoThread.TIMER:
-            self.threads_exec_changed = True
-        
-        if self.debug: self.Log(LOG_DBG,"{}: Cancel r-thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
         return
-            
+    
+    """This can cancel only read or write threads"""   
     def cancel_thread_by_sock(self, sock):
-        for rw_threads in self.threads_read_write:
-            sock, r_thr, w_thr = rw_threads
-            
-            if sock != socket:
-                continue
-            if r_thr:
-                r_thr.to_delete = True
-                r_thr.epoll_flag = MyPseudoThreads.EPOLL_DEL
-                if self.debug: self.Log(LOG_DBG,"{}: Cancel r-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(r_thr)),r_thr.thread_name, r_thre.function.__name__, r_thr.args, hex(id(self))))
-                self.threads_read_write_changed = True
-            if w_thr:
-                w_thr.to_delete = True
-                w_thr.epoll_flag = MyPseudoThreads.EPOLL_DEL
-                if self.debug: self.Log(LOG_DBG,"{}: Cancel w-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(w_thr)),w_thr.thread_name, w_thr.function.__name__, w_thr.args, hex(id(self))))
-                self.threads_read_write_changed = True
-                
-            
         
+        if sock in self.threads_read:
+            if self.debug: self.Log(LOG_DBG,"{}: Cancel thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
+            e = self.threads_read[sock]
+            e.to_delete = True
+            self.update_epoll_mirror(e)
+        
+        if sock in self.threads_write:
+            if self.debug: self.Log(LOG_DBG,"{}: Cancel thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
+            e = self.threads_write[sock]
+            e.to_delete = True
+            self.update_epoll_mirror(e)
+            
+
     def threads_stop(self):
         self.stop=True    
     
     def threads_dump(self, msg):
+        
         self.Log(LOG_DBG,"DUMP Threads " + msg)
-        for s,r,w in self.threads_read_write:
-            if hasattr(e.socket, 'closed'):
-                if r:
-                    self.Log(LOG_DBG,"{}: W {} Sock {} closed {} func {} todel {}".format (self.mpt_name,hex(id(r)), r.socket, r.socket.closed ,   r.function.__name__, r.to_delete))
-                if w:                    
-                    self.Log(LOG_DBG,"{}: W {} Sock {} closed {} func {} todel {}".format (self.mpt_name,hex(id(w)), w.socket, w.socket.closed ,   w.function.__name__, w.to_delete))
+        
+        for e in self.threads_read:
+            if hasattr(e.fd, 'closed'):
+                self.Log(LOG_DBG,"{}: R {} Sock {} func {} todel {}".format (self.mpt_name,hex(id(e)), e.fd, er.function.__name__, e.to_delete))
+        
+        for e in self.threads_write:
+            if hasattr(e.fd, 'closed'):
+                self.Log(LOG_DBG,"{}: W {} Sock {} func {} todel {}".format (self.mpt_name,hex(id(e)), e.fd, e.function.__name__, e.to_delete))
           
         for e in self.threads_timer:    
-            if hasattr(e.socket, 'closed'):
-                self.Log(LOG_DBG, "{}: T {} Sock {} closed {} time {} func {} todel {}".format (self.mpt_name, hex(id(e)), e.socket, e.socket.closed ,  e.time , e.function.__name__, e.to_delete))
+            if hasattr(e.fd, 'closed'):
+                self.Log(LOG_DBG, "{}: T {} Sock {} time {} func {} todel {}".format (self.mpt_name, hex(id(e)), e.fd, e.time , e.function.__name__, e.to_delete))
+        
         self.Log(LOG_DBG, "DUMP Threads END")    
         
         
@@ -290,102 +271,116 @@ class MyPseudoThreads(Logging):
         if self.debug: self.Log(LOG_DBG, "{}: RUN threads for {}".format (self.mpt_name, hex(id(self))))
         while self.stop != True:
             
-            # handle events
-            for e in self.threads_exec:
-                if self.debug: self.Log(LOG_DBG,"{}: Run exec-thr {} {}".format(self.mpt_name, e.function.__name__, hex(id(e))))
-                e.function(e.args)
-            self.threads_exec=[]
-            
-            # soeckt events
-           
-            
-            for s, r, w in self.threads_read_write:
-                flags = 0
-                if r:
-                    flags = flags | select.EPOLLIN
-                if w:
-                    flags = flags | select.EPOLLOUT
-                if r.epoll_flag == MyPseudoThreads.EPOLL_ADD
+            """ handle events
+                We pop the first element, execute it untill all elements are executed.
+                If thread is inactive - do nothing.
+                as in exec function may be added new exec thread - we stop untill the first 
+                such thread is seen
+            """
+            while True:
                 try:
-                    self.epoll.register(e.socket, flags)
+                    e = self.threads_exec.popleft()
+                except:
+                    break
+                if e.to_delete == True:
+                    continue
+                # we reach thread that was just added from any other e.function() - so we stop executing them
+                if e.just_added == True:
+                    e.just_added = False
+                else:
+                    if self.debug: self.Log(LOG_DBG,"{}: Run exec-thr {} {}".format(self.mpt_name, e.function.__name__, hex(id(e))))
+                    e.function(e.args)
+            
+            if not self.threads_timer and not self.threads_read and not self.threads_write:
+                if self.debug: self.Log(LOG_DBG,"{}: No threads to add - exiting", self.mpt_name)
+                break
+
+            delete_list = []
+            for sock, mirror in self.epoll_mirror.items():  
+                try:
+                    if mirror.epoll_bits_old == 0:
+                        if self.debug: self.Log(LOG_ERR,"{}: Epoll Register fd={} Flags={}".format(self.mpt_name, sock, mirror.epoll_bits_new))
+                        self.epoll.register(sock, mirror.epoll_bits_new)
+                    elif mirror.epoll_bits_new == 0:
+                        if self.debug: self.Log(LOG_ERR,"{}: Epoll UnRegister fd {} ".format(self.mpt_name, sock))
+                        self.epoll.unregister(sock)
+                        delete_list.append(sock)
+                    else:
+                        if self.debug: self.Log(LOG_ERR,"{}: Epoll Register fd={} Flags={}".format(self.mpt_name, sock, mirror.epoll_bits_new))
+                        self.epoll.modify(sock, mirror.epoll_bits_new)
                 except:
                     raise
-            
-            if len(self.threads_timer) == 0 and len(self.threads_write) == 0 and len(self.threads_read) == 0:
-                if self.debug: self.Log(LOG_DBG,"{}: No threads to add - exiting".format (self.mpt_name))
-                break
-            
-            if (len(self.threads_timer)):
-                now = time.time_ns()
-                e_time = self.threads_timer[0].time
-                time_out = (e_time - now)/1000000000
-                if time_out < 0:
-                    time_out = 0
-                """ self.Log(LOG_DBG,"SELECT {} {} {} TIME {}".format ([t.fileno() for t in inputs], [t.fileno() for t in outputs], (e_time - now)/1000))"""
-            else:
-                time_out = None
+                mirror.epoll_bits_old = mirror.epoll_bits_new
+            for s in delete_list:
+                if self.debug: self.Log(LOG_ERR,"{}: Epoll Delete EpollStruct fd {}".format(self.mpt_name, s))
+                del self.epoll_mirror[s]
 
+            time_out = None        
+            # check if we have invalid timer at begining and remove them
+            while self.threads_timer:
+                if self.threads_timer[0].to_delete == True:
+                    heapq.heappop(self.threads_timer)
+                    continue
+                else:
+                    now = time.time_ns()
+                    e_time = self.threads_timer[0].time
+                    time_out = (e_time - now)/1000000000
+                    if time_out < 0:
+                        time_out = 0
+                    break
+                    """ self.Log(LOG_DBG,"SELECT {} {} {} TIME {}".format ([t.fileno() for t in inputs], [t.fileno() for t in outputs], (e_time - now)/1000))"""
+            
             try:
                 events = self.epoll.poll(time_out)
             except Exception as msg:
                 self.Log(LOG_ERR, str(msg))
                 raise
-            
-            writable_changed = False               
-            readable_changed = False
-            timer_changed = False
-            for socket, event in events:
-                if event & (select.EPOLLOUT| select.EPOLLERR | select.EPOLLHUP):
-                    for e in self.threads_write:
-                        if e.socket == socket and e.to_delete != True:
-                            if self.debug: self.Log(LOG_DBG,"{}: Run w-thr {} {}".format(self.mpt_name,e.function.__name__, hex(id(e))))
-                            e.to_delete = True
-                            writable_changed = True
-                            e.function(e, e.args)
-                            if self.debug: self.Log(LOG_DBG,"{}: After w-thr {} {} TODEL".format(self.mpt_name, e.function.__name__, hex(id(e))))
-                            """in case the thread add new read thread for same socket
-                            we make cancel as we do not want read thread to be executed twice
-                            """
-                            break
-                if event & (select.EPOLLIN | select.EPOLLPRI | select.EPOLLERR | select.EPOLLHUP):
-                    for e in self.threads_read:
-                        if e.socket == socket and e.to_delete != True:
-                            if self.debug: self.Log(LOG_DBG,"{}: Run r-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
-                            e.to_delete = True
-                            readable_changed = True
-                            e.function(e, e.args)
-                            if self.debug: self.Log(LOG_DBG,"{}: After Run r-thr {} {} TODEL".format(self.mpt_name, e.function.__name__,  hex(id(e))))
-                            break
-            #always check for timers in case the read function took too much time and some timer may have fired
-            timer_changed = False
-            now = None
-            if len (self.threads_timer):
-                # handle late threads
-                for e in self.threads_timer:
-                    if e.to_delete == True:
-                        continue
-                    #thread is in the future or now is not taken - update now   
-                    # the previour thread may have taken so much time, that the next is now to be executed
-                    if now == None or now < e.time:
-                        now = time.time_ns()
-                    if (now >= e.time ):
-                        if self.debug: self.Log(LOG_DBG,"{}: Run t-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
+            for fd, event in events:
+                if fd in self.threads_write:
+                    e = self.threads_write[fd]
+                    if e.to_delete == False and (event & (select.EPOLLOUT| select.EPOLLERR | select.EPOLLHUP)):
+                        if self.debug: self.Log(LOG_DBG,"{}: Run w-thr {} {}".format(self.mpt_name, e.function.__name__, hex(id(e))))
                         e.to_delete = True
-                        timer_changed = True
+                        self.update_epoll_mirror(e)
                         e.function(e, e.args)
-                    else:
-                        break
+                        if e.to_delete == True:
+                            if self.debug: self.Log(LOG_DBG,"{}: Delete w-thr {} {}".format(self.mpt_name, e.function.__name__, hex(id(e))))
+                            del self.threads_write[e.fd]
+                
+                if fd in self.threads_read:
+                    e = self.threads_read[fd]
+                    if e.to_delete == False and (event & (select.EPOLLIN | select.EPOLLPRI | select.EPOLLERR | select.EPOLLHUP) ):
+                        if self.debug: self.Log(LOG_DBG,"{}: Run r-thr {} {}".format(self.mpt_name, e.function.__name__, hex(id(e))))
+                        e.to_delete = True
+                        self.update_epoll_mirror(e)
+                        e.function(e, e.args)
+                        if e.to_delete == True:
+                            if self.debug: self.Log(LOG_DBG,"{}: Delete r-thr {} {}".format(self.mpt_name, e.function.__name__, hex(id(e))))
+                            del self.threads_read[e.fd]
 
-            if writable_changed:
-                self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
-            if readable_changed:
-                self.threads_write = [item for item in self.threads_write if item.to_delete != True]
-            if timer_changed:
-                self.threads_timer = [item for item in self.threads_timer if item.to_delete != True]
+            now = None
+            # we need always to check those timers
+            while self.threads_timer:
+                e = self.threads_timer[0]
+                # handle late threads
+                if e.to_delete == True:
+                    heapq.heappop(self.threads_timer)
+                    continue
+                #thread is in the future or now is not taken - update now   
+                # the previour thread may have taken so much time, that the next is now to be executed
+                if now == None or now < e.time:
+                    now = time.time_ns()
+                if (now >= e.time ):
+                    if self.debug: self.Log(LOG_DBG,"{}: Run t-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
+                    heapq.heappop(self.threads_timer)
+                    e.function(e, e.args)
+                else:
+                    break
+
             """
             if True:
                 now = time.time_ns() * 1000 
-                self.Log(LOG_DBG,"DUMP END R{} W{} E{} TIMER {}".format ([hex(id(t)) for t in self.threads_read] , [t.socket.fileno() for t in self.threads_write], [t.socket.fileno() for t in self.threads_exec], [t.time-now for t in self.threads_timer]))"""
+                self.Log(LOG_DBG,"DUMP END R{} W{} E{} TIMER {}".format ([hex(id(t)) for t in self.threads_read] , [fd for t in self.threads_write], [fd for t in self.threads_exec], [t.time-now for t in self.threads_timer]))"""
 
 
 """ 

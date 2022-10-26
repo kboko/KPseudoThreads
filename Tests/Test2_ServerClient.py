@@ -44,7 +44,7 @@ class Server(MyPseudoThreads):
         self.msg_size = DATA_PORTION
         self.conn = None
         self.addr = None
-        MyPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE)
+        MyPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE,False)
         
     def init_server(self):
         for res in socket.getaddrinfo("127.0.0.1", PORT , socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE):
@@ -75,7 +75,7 @@ class Server(MyPseudoThreads):
         for b in range(0, DATA_PORTION):
             self.write_buffer[b] = b%256
         self.write_index = 0
-
+        print ("Adding", self.conn)
         self.add_read_thread ("read_from_client", self.conn, self.read_from_client, None)
         self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
         return True
@@ -143,7 +143,7 @@ class Client(MyPseudoThreads):
             self.write_buffer[b] = b%256
         self.write_index = 0
 
-        MyPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE)
+        MyPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE, False)
         
     def init_client(self):
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
@@ -155,7 +155,6 @@ class Client(MyPseudoThreads):
         try:
             read_bytes = self.conn.recv(self.msg_size)
         except:
-            print ("Except")
             read_bytes = None
         # peer closed the connection or error
         if read_bytes == None:
@@ -179,6 +178,7 @@ class Client(MyPseudoThreads):
         self.add_read_thread ("read_from_server", self.conn, self.read_from_server, None)
     
     def send_to_server(self, thread, arg):
+
         try:
             sent = self.conn.send(self.write_buffer[self.write_index:])
         except:

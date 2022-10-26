@@ -39,7 +39,7 @@ from datetime import datetime
 	User can check the performance of the threads code with many timer threads. Depending on the machine the delays may be different
 	
 """
-DISPLAY=True
+DISPLAY=False
 class TimerThreadTest_1(MyPseudoThreads):
 	
 	def __init__(self, count_threads, max_count):
