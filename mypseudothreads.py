@@ -231,10 +231,10 @@ class MyPseudoThreads(Logging):
             for e in self.threads_read:
                 inputs.append(e.socket)    
             
-            if len(self.threads_timer) == 0 and len(inputs) == 0 and len(outputs) == 0:
+            if not self.threads_timer and not inputs and not outputs == 0:
                 if self.debug: self.Log(LOG_DBG,"{}: No threads to add - exiting".format (self.mpt_name))
                 break
-            if (len(self.threads_timer)):
+            if self.threads_timer:
                 now = time.time_ns()
                 e_time = self.threads_timer[0].time
                 time_out = e_time - now
@@ -256,38 +256,45 @@ class MyPseudoThreads(Logging):
                     pass
                 """ self.Log(LOG_DBG,"SELECT_AFTER {} {} {}".format ([t.fileno() for t in readable], [t.fileno() for t in writable], [t.fileno() for t in exceptional]))
                 """
-            writable_changed = False   
             #now write threads - make copy and interate
-            if len (writable):
+            if writable:
                 for fd in writable:
-                    for e in self.threads_write:
+                    llen = len(self.threads_write) 
+                    i = 0 
+                    while i < llen:  
+                        e = self.threads_write[i]
+                        i = i + 1
                         if e.socket == fd and e.to_delete != True:
                             if self.debug: self.Log(LOG_DBG,"{}: Run w-thr {} {}".format(self.mpt_name,e.function.__name__, hex(id(e))))
                             e.to_delete = True
-                            writable_changed = True
                             e.function(e, e.args)
                             if self.debug: self.Log(LOG_DBG,"{}: After w-thr {} {} TODEL".format(self.mpt_name, e.function.__name__, hex(id(e))))
                             """in case the thread add new read thread for same socket
                             we make cancel as we do not want read thread to be executed twice
                             """
                             break
-            readable_changed = False
-            if len (readable):
+            if readable:
                 #now read threads
                 for fd in readable:
-                    for e in self.threads_read:
+                    llen = len(self.threads_read)  
+                    i = 0
+                    while i < llen:  
+                        e = self.threads_read[i]
+                        i = i + 1
                         if e.socket == fd and e.to_delete != True:
                             if self.debug: self.Log(LOG_DBG,"{}: Run r-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                             e.to_delete = True
-                            readable_changed = True
                             e.function(e, e.args)
                             if self.debug: self.Log(LOG_DBG,"{}: After Run r-thr {} {} TODEL".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                             break
-            timer_changed = False
             now = None
-            if len (self.threads_timer):
+            if self.threads_timer:
                 # handle late threads
-                for e in self.threads_timer:
+                llen = len(self.threads_timer)  
+                i = 0
+                while i < llen:  
+                    e = self.threads_timer[i]
+                    i = i + 1
 
                     if e.to_delete == True:
                         continue
@@ -298,17 +305,13 @@ class MyPseudoThreads(Logging):
                     if (now >= e.time ):
                         if self.debug: self.Log(LOG_DBG,"{}: Run t-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
                         e.to_delete = True
-                        timer_changed = True
                         e.function(e, e.args)
                     else:
                         break
 
-            if writable_changed:
-                self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
-            if readable_changed:
-                self.threads_write = [item for item in self.threads_write if item.to_delete != True]
-            if timer_changed:
-                self.threads_timer = [item for item in self.threads_timer if item.to_delete != True]
+            self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
+            self.threads_write = [item for item in self.threads_write if item.to_delete != True]
+            self.threads_timer = [item for item in self.threads_timer if item.to_delete != True]
             """
             if True:
                 now = time.time_ns() * 1000 
