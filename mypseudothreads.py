@@ -138,7 +138,7 @@ class MyPseudoThreads(Logging):
                     item.args = args
                     item.to_delete = False
                     self.deleted_read_threads = self.deleted_read_threads - 1
-                    if self.debug: self.Log(LOG_DBG, "{}: Reuse r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
+                    if self.debug: self.Log(LOG_DBG, "{}: Reuse r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(item)),socket.fileno(), name, function.__name__, args, hex(id(self))))
                     return item
         new_thread = MyPseudoThread(name, MyPseudoThread.READ, socket, function, args)
         self.threads_read.append(new_thread)
@@ -158,7 +158,7 @@ class MyPseudoThreads(Logging):
                     item.args = args
                     item.to_delete = False
                     self.deleted_write_threads = self.deleted_write_threads - 1
-                    if self.debug: self.Log(LOG_DBG,"{}: Reuse w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket.fileno(), name, function.__name__, args, hex(id(self))))
+                    if self.debug: self.Log(LOG_DBG,"{}: Reuse w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(item)), socket.fileno(), name, function.__name__, args, hex(id(self))))
                     return item
         new_thread = MyPseudoThread(name, MyPseudoThread.WRITE, socket, function, args)
         self.threads_write.append(new_thread)
@@ -184,21 +184,20 @@ class MyPseudoThreads(Logging):
         return new_thread
     
     def cancel_thread(self, thread):
-        
-        if thread.to_delete != True:
+        if thread.to_delete == True:
             return
         if thread.thread_type == MyPseudoThread.READ:
             self.deleted_read_threads = self.deleted_read_threads + 1
         if thread.thread_type == MyPseudoThread.WRITE:
             self.deleted_write_threads = self.deleted_write_threads + 1
         thread.to_delete = True
-        if self.debug: self.Log(LOG_DBG,"{}: Cancel r-thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
+        if self.debug: self.Log(LOG_DBG,"{}: Cancel thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
         return
             
     def cancel_thread_by_sock(self, sock):
         for e in self.threads_read:
             if e.socket == sock:
-                if e.to_delete != True:
+                if e.to_delete == True:
                     break
                 self.deleted_read_threads = self.deleted_read_threads + 1
                 e.to_delete = True
@@ -206,7 +205,7 @@ class MyPseudoThreads(Logging):
                 break                
         for e in self.threads_write:
             if e.socket == sock:
-                if e.to_delete != True:
+                if e.to_delete == True:
                     break
                 self.deleted_write_threads = self.deleted_write_threads + 1
                 e.to_delete = True
@@ -259,10 +258,12 @@ class MyPseudoThreads(Logging):
 
             # Fill the select writes
             for e in self.threads_write:
-                outputs.append(e.socket)    
+                if e.to_delete == False:
+                    outputs.append(e.socket)    
             # Fill the select reads
             for e in self.threads_read:
-                inputs.append(e.socket)    
+                if e.to_delete == False:
+                    inputs.append(e.socket)    
 
             # check if we have reach time to say goodbye
             if not self.threads_timer and not inputs and not outputs and not self.threads_exec:

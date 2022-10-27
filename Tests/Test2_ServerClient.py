@@ -77,12 +77,12 @@ class Server(MyPseudoThreads):
         self.write_index = 0
 
         self.add_read_thread ("read_from_client", self.conn, self.read_from_client, None)
-        self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
+        self.timer_thr = self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
         return True
     
     def timer_print_stat(self, thread, arg):
         print ("So far: {} Reads, {} Writes, Rate".format(self.counter_read_all, self.counter_send_all))
-        self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
+        self.timer_thr = self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
 
 
     def read_from_client(self, thread, arg):
@@ -94,11 +94,12 @@ class Server(MyPseudoThreads):
         if read_bytes == None:
             # cancel all threads
             self.cancel_thread_by_sock(self.conn)
+            self.cancel_thread(self.timer_thr)
             # close the socket
             self.conn.close() 
             self.conn=None 
             # now start accepting again
-            self.add_read_thread ("accept_client", self.conn, self.accept_client, None)
+            self.add_read_thread ("accept_client", self.s, self.accept_client, None)
             return
         self.counter_read_all = self.counter_read_all + len (read_bytes)
         # add new bytes to our in buffer
