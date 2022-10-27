@@ -109,7 +109,7 @@ class MyPseudoThreads(Logging):
     def __init__(self, name, log_level, log_facility, debug=None):
         
         self.mpt_name = name
-        self.stop=False
+        self.threads_stop_loop=False
         self.threads_read=[]
         self.threads_write=[]
         self.threads_timer=[]
@@ -214,7 +214,7 @@ class MyPseudoThreads(Logging):
             
         
     def threads_stop(self):
-        self.stop=True    
+        self.threads_stop_loop=True    
     
     def threads_dump(self, msg):
         self.Log(LOG_DBG,"DUMP Threads " + msg)
@@ -234,7 +234,7 @@ class MyPseudoThreads(Logging):
         
     def threads_run(self):
         if self.debug: self.Log(LOG_DBG, "{}: RUN threads for {}".format (self.mpt_name, hex(id(self))))
-        while self.stop != True:
+        while self.threads_stop_loop != True:
             outputs = []
             inputs = []  
 
@@ -449,7 +449,7 @@ class MyTask (MyPseudoThreads, threading.Thread):
     
     """ send notification to the child to stop"""
     def task_stop(self):
-        self.msg_to_child(MyTask.MY_T_STOP)
+        self.send_msg_2_child(MyTask.MY_T_STOP)
     
     # if Parent is MyPseudoThreads - add thread to process msgs from child
     def add_hook_for_msgs_from_child_(self, parent, function): 

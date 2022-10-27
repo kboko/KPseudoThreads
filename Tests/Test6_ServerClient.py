@@ -222,14 +222,15 @@ class Client(MyTask):
 def main():
     print ("Starting server")
     # MAIN
-    something = Server()
-    something.start();
+    server = Server()
+    server.start();
     time.sleep(3)
     for a in range(0,10):
         print ("Starting Clients")
         something = Client("Client{}".format(a))
         something.start();
-    while True:
-        time.sleep(1)
+    # run 10 seconds 
+    time.sleep(10)
+    server.task_stop()
 if __name__ == "__main__":
     main()    
