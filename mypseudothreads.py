@@ -405,7 +405,9 @@ class MyTask (MyPseudoThreads, threading.Thread):
 
     # INIT functions:
     def __init__(self, task_name, log_level, log_facility, debug=None):
-        super(MyTask, self).__init__(thread_name, log_level, log_facility, debug)
+        threading.Thread.__init__(self)
+        MyPseudoThreads.__init__(self, task_name, log_level, log_facility, debug)
+
         self.task_name = task_name
         self.debug = debug
         self.from_child_hook = None
@@ -459,18 +461,20 @@ class MyTask (MyPseudoThreads, threading.Thread):
 
 
     # FUNCTIONS CALLED INSIDE CHILD CONTEXT
-    def run(self):
-        if self.debug: 
-            if self.debug: self.Log(LOG_DBG,"{}: Started".format(self.task_name,  hex(id(self))))
-        
-    def task_post_start(self):
-        pass   
 
+    def task_pre_run_hook(self):
+        pass   
+    
+    def run(self):
+        
+        if self.debug: self.Log(LOG_DBG,"{}: Started".format(self.task_name,  hex(id(self))))
         # this thread is for messages from the Parent
-        msg_from_parent_thread = self.add_read_thread ("{}: {}: MSG_from_parent", self.task_name, self.pipe_child_from_parent, self._internal_msg_from_parent, self)
+        msg_from_parent_thread = self.add_read_thread (self.task_name, self.pipe_child_from_parent, self._child_internal_msg_from_parent, self)
+        
+        self.task_pre_run_hook()
         
         self.threads_run();
-
+        
         self.child_pre_stop_hook()
         if self.debug: self.Log("{}: {} closing {} {}".format(self.task_name, hex(id(self)), self.pipe_child_to_parent.fileno(), self.pipe_child_from_parent.fileno()))
 
@@ -484,7 +488,7 @@ class MyTask (MyPseudoThreads, threading.Thread):
 
         if self.debug: self.Log("{}: {} ended".format(self.task_name, hex(id(self))))
 
-    def _internal_msg_from_parent(self, arg):
+    def _child_internal_msg_from_parent(self, arg):
         stop = False
         msg = self.pipe_child_from_parent.recv()
         # call child funciton
@@ -493,7 +497,7 @@ class MyTask (MyPseudoThreads, threading.Thread):
             if self.debug: self.Log("{}: Stopping Child", self.task_name,)
         else:
             # add read thread again
-            self.add_read_thread ("pipe_child_from_parent", self.pipe_child_from_parent, self._internal_msg_from_parent, self)
+            self.add_read_thread ("pipe_child_from_parent", self.pipe_child_from_parent, self._child__internal_msg_from_parent, self)
 
     # Virtual functons
     def child_started_hook(self):
