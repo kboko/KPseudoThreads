@@ -37,7 +37,7 @@ from datetime import datetime
 """
 DISPLAY=True
 PORT=34455
-DATA_PORTION = 2
+DATA_PORTION = 1024009
 class Server(MyPseudoThreads):
     
     def __init__(self):
@@ -75,13 +75,18 @@ class Server(MyPseudoThreads):
         for b in range(0, DATA_PORTION):
             self.write_buffer[b] = b%256
         self.write_index = 0
-
+        self.timestamp = time.time_ns()
         self.add_read_thread ("read_from_client", self.conn, self.read_from_client, None)
         self.timer_thr = self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
         return True
     
     def timer_print_stat(self, thread, arg):
-        print ("So far: {} Reads, {} Writes, Rate".format(self.counter_read_all, self.counter_send_all))
+        now = time.time_ns()
+        diff = (now-self.timestamp)/1000000000
+        print ("So far: {} bytes Reads, {} bytes Writes, Rate Read {:.2f} bytes/sec, Rate Write {:.2f} bytes/sec ".format(self.counter_read_all, self.counter_send_all, self.counter_read_all/diff, self.counter_send_all/diff))
+        self.counter_read_all = 0
+        self.counter_send_all = 0
+        self.timestamp = now
         self.timer_thr = self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
 
 
@@ -92,6 +97,7 @@ class Server(MyPseudoThreads):
             read_bytes = None
         # peer closed the connection or error
         if read_bytes == None:
+            print ('{} disonnected'.format (self.addr))
             # cancel all threads
             self.cancel_thread_by_sock(self.conn)
             self.cancel_thread(self.timer_thr)
