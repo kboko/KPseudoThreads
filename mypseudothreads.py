@@ -86,8 +86,13 @@ class Logging():
             
 
 class MyPseudoThread():
-    def __init__(self, thread_name, socket, function, args, time = None):
+    READ = 0
+    WRITE = 1
+    EXEC = 2
+    TIMER = 3
+    def __init__(self, thread_name, thread_type, socket, function, args, time = None):
         self.thread_name = thread_name
+        self.thread_type = thread_type
         self.socket = socket
         self.args = args
         self.time = time
@@ -100,13 +105,17 @@ class MyPseudoThread():
 
     
 class MyPseudoThreads(Logging): 
+
     def __init__(self, name, log_level, log_facility, debug=None):
+        
         self.mpt_name = name
         self.stop=False
         self.threads_read=[]
         self.threads_write=[]
         self.threads_timer=[]
-
+        # optimisations - keep count of deleted threads
+        self.deleted_read_threads = 0
+        self.deleted_write_threads = 0
         # exec threads are executed in sorted order - we use deque
         # we need to have 
         self.threads_exec = collections.deque()
@@ -128,9 +137,10 @@ class MyPseudoThreads(Logging):
                     item.function = function
                     item.args = args
                     item.to_delete = False
+                    self.deleted_read_threads = self.deleted_read_threads - 1
                     if self.debug: self.Log(LOG_DBG, "{}: Reuse r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
                     return item
-        new_thread = MyPseudoThread(name, socket, function, args)
+        new_thread = MyPseudoThread(name, MyPseudoThread.READ, socket, function, args)
         self.threads_read.append(new_thread)
         if self.debug: self.Log(LOG_DBG, "{}: Adding r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket.fileno(), name, function.__name__, args, hex(id(self))))
         return new_thread
@@ -147,9 +157,10 @@ class MyPseudoThreads(Logging):
                     item.function = function
                     item.args = args
                     item.to_delete = False
+                    self.deleted_write_threads = self.deleted_write_threads - 1
                     if self.debug: self.Log(LOG_DBG,"{}: Reuse w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket.fileno(), name, function.__name__, args, hex(id(self))))
                     return item
-        new_thread = MyPseudoThread(name, socket, function, args)
+        new_thread = MyPseudoThread(name, MyPseudoThread.WRITE, socket, function, args)
         self.threads_write.append(new_thread)
         if self.debug: self.Log(LOG_DBG,"{}: Adding w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket.fileno(), name, function.__name__, args, hex(id(self))))
         return new_thread
@@ -158,7 +169,7 @@ class MyPseudoThreads(Logging):
         #return None
         when = time.time_ns() + after_ms * 1000000
         
-        new_thread = MyPseudoThread(name, None, function, args, when)
+        new_thread = MyPseudoThread(name, MyPseudoThread.TIMER, None, function, args, when)
 
         heapq.heappush(self.threads_timer, new_thread)
 
@@ -167,12 +178,19 @@ class MyPseudoThreads(Logging):
         
     def add_execute_thread(self, name, function, args):
         
-        new_thread = MyPseudoThread(name, None, function, args)
+        new_thread = MyPseudoThread(name, MyPseudoThread.EXEC,  None, function, args)
         self.threads_exec.append(new_thread)
         if self.debug: self.Log(LOG_DBG,"{}: Adding ex-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), name, function.__name__, args, hex(id(self))))
         return new_thread
     
     def cancel_thread(self, thread):
+        
+        if thread.to_delete != True:
+            return
+        if thread.thread_type == MyPseudoThread.READ:
+            self.deleted_read_threads = self.deleted_read_threads + 1
+        if thread.thread_type == MyPseudoThread.WRITE:
+            self.deleted_write_threads = self.deleted_write_threads + 1
         thread.to_delete = True
         if self.debug: self.Log(LOG_DBG,"{}: Cancel r-thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
         return
@@ -180,14 +198,20 @@ class MyPseudoThreads(Logging):
     def cancel_thread_by_sock(self, sock):
         for e in self.threads_read:
             if e.socket == sock:
+                if e.to_delete != True:
+                    break
+                self.deleted_read_threads = self.deleted_read_threads + 1
                 e.to_delete = True
                 if self.debug: self.Log(LOG_DBG,"{}: Cancel r-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(e)),e.thread_name, e.function.__name__, e.args, hex(id(self))))
-                
+                break                
         for e in self.threads_write:
             if e.socket == sock:
+                if e.to_delete != True:
+                    break
+                self.deleted_write_threads = self.deleted_write_threads + 1
                 e.to_delete = True
                 if self.debug: self.Log(LOG_DBG,"{}: Cancel w-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(e)),e.thread_name, e.function.__name__, e.args, hex(id(self))))
-                
+                break
             
         
     def threads_stop(self):
@@ -256,7 +280,7 @@ class MyPseudoThreads(Logging):
                 else:
                     now = time.time_ns()
                     e_time = self.threads_timer[0].time
-                    time_out = (e_time - now)/1000000000
+                    time_out = (e_time - now)/1000000000 
                     if time_out < 0:
                         time_out = 0
                     break
@@ -325,9 +349,12 @@ class MyPseudoThreads(Logging):
                     break
 
             # carbage colector
-            self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
-            self.threads_write = [item for item in self.threads_write if item.to_delete != True]
-            
+            if self.deleted_read_threads:
+                self.threads_read  = [item for item in self.threads_read  if item.to_delete != True]
+                self.deleted_read_threads = 0
+            if self.deleted_write_threads:
+                self.threads_write = [item for item in self.threads_write if item.to_delete != True]
+                self.deleted_write_threads = 0
             """
             if True:
                 now = time.time_ns() * 1000 
