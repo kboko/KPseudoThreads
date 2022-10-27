@@ -30,10 +30,6 @@ import time
 import socket
 from datetime import datetime
 """
-    This is the minimaliscit example - Server - Client
-    Server have one open socket. client connectes and sends data, the 
-    server reply.
-
     Starts client or server and send data
     Server:
         python3 Test2_ServerClient.py server
@@ -41,20 +37,19 @@ from datetime import datetime
         python3 Test2_ServerClient.py 
     DISPLAY - show read/write thread executions
     Threads debug can be enabled - see MyPseudoThreads constructor
-    DATA_PORTION - this sets the data to be send, make it not so big, Use Test3 for bigger chunks
 
+    The difference with the test 2 ist that here we read the whole buffer
 """
 DISPLAY=False
-
 PORT=34455
-DATA_PORTION = 1024
+DATA_PORTION = 1024009
 class Server(MyPseudoThreads):
     
     def __init__(self):
         self.msg_size = DATA_PORTION
         self.conn = None
         self.addr = None
-        MyPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE, False)
+        MyPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE)
         
     def init_server(self):
         for res in socket.getaddrinfo("127.0.0.1", PORT , socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE):
@@ -80,9 +75,11 @@ class Server(MyPseudoThreads):
         print ('Command thread connected by {}'.format (self.addr))
 
         
+        self.read_buffer = bytearray()
         self.write_buffer = bytearray(DATA_PORTION)
         for b in range(0, DATA_PORTION):
             self.write_buffer[b] = b%256
+        self.write_index = 0
         self.timestamp = time.time_ns()
         self.add_read_thread ("read_from_client", self.conn, self.read_from_client, None)
         self.timer_thr = self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
@@ -117,13 +114,20 @@ class Server(MyPseudoThreads):
             self.add_read_thread ("accept_client", self.s, self.accept_client, None)
             return
         self.counter_read_all = self.counter_read_all + len (read_bytes)
-        
-        self.add_write_thread ("write_to_client", self.conn, self.write_to_client, None)
+        # add new bytes to our in buffer
+        self.read_buffer = self.read_buffer + read_bytes
+        # if we got whole message
+        if len(self.read_buffer) >= self.msg_size: 
+            in_data = self.read_buffer[:self.msg_size]
+            self.read_buffer = self.read_buffer[self.msg_size:]
+            #print ("Received {}, replying...".format(len(in_data)))
+            self.add_write_thread ("write_to_client", self.conn, self.write_to_client, None)
+        # more to read
         self.add_read_thread ("read_from_client", self.conn, self.read_from_client, None)
     
     def write_to_client(self, thread, arg):
         try:
-            sent = self.conn.send(self.write_buffer)
+            sent = self.conn.send(self.write_buffer[self.write_index:])
             if DISPLAY: print ("Write", sent)
         except:
             self.cancel_thread_by_sock(self.conn)
@@ -132,6 +136,13 @@ class Server(MyPseudoThreads):
             self.conn=None 
             exit(1)
         self.counter_send_all = self.counter_send_all + sent
+        if sent != DATA_PORTION - self.write_index:
+            print ("Sent Only {}. Schedule more to send", sent)
+            self.write_index = self.write_index + sent
+            # schedule thread to send the reset
+            self.add_write_thread ("more_to_write_to_client", self.conn, self.write_to_client, None)
+        else:
+            self.sent_chunk = 0
 
 
 
@@ -140,10 +151,13 @@ class Client(MyPseudoThreads):
     
     def __init__(self):
         self.msg_size = DATA_PORTION
+        self.read_buffer = bytearray()
         self.write_buffer = bytearray(DATA_PORTION)
         for b in range(0, DATA_PORTION):
             self.write_buffer[b] = b%256
-        MyPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE, False)
+        self.write_index = 0
+
+        MyPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE)
         
     def init_client(self):
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
@@ -165,16 +179,21 @@ class Client(MyPseudoThreads):
             # close the socket
             self.conn.close() 
             self.conn=None 
-            # now start accepting again
             return
-        # reply
-        self.add_write_thread ("send_to_server", self.conn, self.send_to_server, None)
-        # more on read 
+        # add new bytes to our in buffer
+        self.read_buffer = self.read_buffer + read_bytes
+        # if we got whole message
+        if len(self.read_buffer) >= self.msg_size: 
+            in_data = self.read_buffer[:self.msg_size]
+            self.read_buffer = self.read_buffer[self.msg_size:]
+            #print ("Received {}, replying...".format(len(in_data)))
+            self.add_write_thread ("send_to_server", self.conn, self.send_to_server, None)
+        # more to read
         self.add_read_thread ("read_from_server", self.conn, self.read_from_server, None)
-
+    
     def send_to_server(self, thread, arg):
         try:
-            sent = self.conn.send(self.write_buffer)
+            sent = self.conn.send(self.write_buffer[self.write_index:])
             if DISPLAY: print ("Write", sent)
         except:
             self.cancel_thread_by_sock(self.conn)
@@ -182,7 +201,14 @@ class Client(MyPseudoThreads):
             self.conn.close() 
             self.conn=None 
             exit(1)
-        
+        if sent != DATA_PORTION - self.write_index:
+            print ("Sent Only {}. Schedule more to send", sent)
+            self.write_index = self.write_index + sent
+            # schedule thread to send the reset
+            self.add_write_thread ("more_to_write_to_client", self.conn, self.send_to_server, None)
+        else:
+            #print ("Sent {}", sent)
+            self.sent_chunk = 0
 
 
 def main():
