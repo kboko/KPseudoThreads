@@ -22,17 +22,22 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 
-from mypseudothreads import MyPseudoThreads 
+from mypseudothreads import MyTask 
+import os
+import time
+class Something(MyTask):
+    def __init__(self):
+        MyTask.__init__(self)
+    
+    def task_pre_run_hook(self):
+        self.add_timer_thread("Timer_1", 2000, self.timer_1_fire, None)
 
-class SimpleTimerClass(MyPseudoThreads):
-	
-	def __init__(self):
-		self.count = 0
-		MyPseudoThreads.__init__(self)
-		
-	def timer_1_fire(self, thr, arg):
-		self.Log(MyPseudoThreads.LOG_INFO, "Thread Fired")
+    def timer_1_fire(self, thr, arg):
+        print("Child is working")
 
-something = SimpleTimerClass()
-something.add_timer_thread("Timer_1", 2000, something.timer_1_fire, None)
-something.threads_run();
+
+something = Something()
+something.start()
+while True:
+    print ("Parent sleeps tonight")
+    time.sleep(1)

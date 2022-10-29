@@ -22,17 +22,47 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 
-from mypseudothreads import MyPseudoThreads 
+import sys
+sys.path.append('..')
+from mypseudothreads import *
+import traceback
+import random 
+import time
+from datetime import datetime
 
-class SimpleTimerClass(MyPseudoThreads):
+DISPLAY=True
+class Test_0(MyPseudoThreads):
 	
-	def __init__(self):
-		self.count = 0
-		MyPseudoThreads.__init__(self)
+	def __init__(self, count_threads):
+		self.count_threads = count_threads
+		MyPseudoThreads.__init__(self, "SimpleStateMachineApp", LOG_DBG, LOG_CONSOLE)
 		
-	def timer_1_fire(self, thr, arg):
-		self.Log(MyPseudoThreads.LOG_INFO, "Thread Fired")
 
-something = SimpleTimerClass()
-something.add_timer_thread("Timer_1", 2000, something.timer_1_fire, None)
-something.threads_run();
+	def init_threads(self):
+		for a in range(self.count_threads):
+			thread = self.add_execute_thread("Exec_{}".format (a), self.exec_thread_fire, a)
+			thread.count = 1
+
+		
+	def exec_thread_fire(self, thread, a):
+		time.sleep(1)
+		print (datetime.now(), "FIRE {}".format (a))
+		#new_thread = self.add_execute_thread("Exec_{}".format (a), self.exec_thread_fire, a)
+		
+
+def main():
+	# MAIN
+	something = Test_0(10)
+	try:
+		something.Log(LOG_INFO, "Starting",)
+		something.init_threads()
+		something.threads_run();
+		something.Log(LOG_INFO, "All threads done. Stop")              
+	except KeyboardInterrupt:
+		traceback.print_exc()
+		exit (1)
+	except:
+		traceback.print_exc()
+	
+if __name__ == "__main__":
+	main()  

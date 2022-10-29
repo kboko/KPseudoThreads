@@ -230,7 +230,7 @@ def main():
         something = Client("Client{}".format(a))
         something.start();
     # run 10 seconds 
-    time.sleep(10)
+    time.sleep(60)
     server.task_stop()
 if __name__ == "__main__":
     main()    

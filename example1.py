@@ -23,16 +23,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 
 from mypseudothreads import MyPseudoThreads 
-
+import os
 class SimpleTimerClass(MyPseudoThreads):
 	
 	def __init__(self):
-		self.count = 0
 		MyPseudoThreads.__init__(self)
 		
-	def timer_1_fire(self, thr, arg):
-		self.Log(MyPseudoThreads.LOG_INFO, "Thread Fired")
+	def read_thread_hook(self, thr, arg):
+		data = os.read(thr.socket, 100)
+		print ("Received", data)
 
+	def write_thread_hook(self, thr, arg):
+		print ("Sending..")
+		os.write(thr.socket, b"Something")
+
+
+r_pipe,w_pipe = os.pipe()
 something = SimpleTimerClass()
-something.add_timer_thread("Timer_1", 2000, something.timer_1_fire, None)
+something.add_read_thread("Read", r_pipe, something.read_thread_hook, None)
+something.add_write_thread("Write", w_pipe, something.write_thread_hook, None)
 something.threads_run();
+os.close(r_pipe)
+os.close(w_pipe)
