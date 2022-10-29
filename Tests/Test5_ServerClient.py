@@ -23,7 +23,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 import sys
 sys.path.append('..')
-from mypseudothreads import *
+from kpseudothreads import *
 import traceback
 import random 
 import time
@@ -40,7 +40,7 @@ from datetime import datetime
     client:
         python3 Test2_ServerClient.py 
     DISPLAY - show read/write thread executions
-    Threads debug can be enabled - see MyPseudoThreads constructor
+    Threads debug can be enabled - see KPseudoThreads constructor
     DATA_PORTION - this sets the data to be send, make it not so big, Use Test3 for bigger chunks
 
 """

@@ -24,18 +24,18 @@ SOFTWARE."""
 
 import sys
 sys.path.append('..')
-from mypseudothreads import *
+from kpseudothreads import *
 import traceback
 import random 
 import time
 from datetime import datetime
 
 DISPLAY=True
-class Test_0(MyPseudoThreads):
+class Test_0(KPseudoThreads):
 	
 	def __init__(self, count_threads):
 		self.count_threads = count_threads
-		MyPseudoThreads.__init__(self, "SimpleStateMachineApp", LOG_DBG, LOG_CONSOLE)
+		KPseudoThreads.__init__(self, "SimpleStateMachineApp", LOG_DBG, LOG_CONSOLE)
 		
 
 	def init_threads(self):

@@ -22,12 +22,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 
-from mypseudothreads import MyPseudoThreads 
+from kpseudothreads import KPseudoThreads 
 import os
-class SimpleTimerClass(MyPseudoThreads):
+class SimpleTimerClass(KPseudoThreads):
 	
 	def __init__(self):
-		MyPseudoThreads.__init__(self)
+		KPseudoThreads.__init__(self)
 		
 	def read_thread_hook(self, thr, arg):
 		data = os.read(thr.socket, 100)

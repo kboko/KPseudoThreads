@@ -22,8 +22,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 
-from mypseudothreads import MyTask 
-from mypseudothreads import MyPseudoThreads 
+from kpseudothreads import MyTask 
+from kpseudothreads import KPseudoThreads 
 import os
 import time
 
@@ -53,7 +53,7 @@ class Client(MyTask):
 class Server(MyTask):
     def __init__(self, pipes):
         self.pipes = pipes
-        MyTask.__init__(self, log_facility=MyPseudoThreads.LOG_CONSOLE, debug=True)
+        MyTask.__init__(self, log_facility=KPseudoThreads.LOG_CONSOLE, debug=True)
         
     def task_pre_run_hook(self):
         self.pipe = self.pipes[0]

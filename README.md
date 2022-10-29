@@ -1,4 +1,4 @@
-# MyPseudoThreads
+# KPseudoThreads
 Overwivew
 This module provides a framework for writing Python applications with pseudo threads. Those Threads
 never work in paralell, that's why no synchronisation between them is needed. This makes implementing event based applications easier. 
@@ -24,7 +24,7 @@ Short introduction
 The core of the framework is waiting on events on a select() syscall. If any event occur the select() exits
 and process the events. Then the loop starts again until no more registered events exists.
 
-The module implements a base class "MyPseudoThreads" that needs to be inheritet.
+The module implements a base class "KPseudoThreads" that needs to be inheritet.
 
 The threads must be registered first, as we specify the hook functions to be executed and their arguments.
 
@@ -40,19 +40,19 @@ garantee that some data may be written on this fd.
 
 - execute - same as timer threads with timeout 0
 
-There is another class "MyTask" which starts "MyPseudoThreads" in a real Thread process. See detailed documentation.
+There is another class "MyTask" which starts "KPseudoThreads" in a real Thread process. See detailed documentation.
 
 
 Example2:
 This code starts thread timer with timeout 2 sec:
 
-from mypseudothreads import MyPseudoThreads 
-class SimpleTimerClass(MyPseudoThreads):
+from kpseudothreads import KPseudoThreads 
+class SimpleTimerClass(KPseudoThreads):
 	def __init__(self):
-		MyPseudoThreads.__init__(self, "Thread", MyPseudoThreads.LOG_DBG, MyPseudoThreads.LOG_CONSOLE)
+		KPseudoThreads.__init__(self, "Thread", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE)
 		
 	def timer_1_fire(self, thr, arg):
-		self.Log(MyPseudoThreads.LOG_INFO, "Thread Fired")
+		self.Log(KPseudoThreads.LOG_INFO, "Thread Fired")
 
 something = SimpleTimerClass()
 something.add_timer_thread("Timer_1", 2000, something.timer_1_fire, None)
@@ -65,12 +65,12 @@ we start 2 Threads - read and write. As we can write on the pipe
 the write thread is executed immediately, and it writes somthing on the pipe.
 As there is something to read, the read thread is also executed.
 
-from mypseudothreads import MyPseudoThreads 
+from kpseudothreads import KPseudoThreads 
 import os
-class SimpleTimerClass(MyPseudoThreads):
+class SimpleTimerClass(KPseudoThreads):
 	
 	def __init__(self):
-		MyPseudoThreads.__init__(self, "Thread", MyPseudoThreads.LOG_DBG, MyPseudoThreads.LOG_CONSOLE, debug=False)
+		KPseudoThreads.__init__(self, "Thread", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, debug=False)
 		
 	def read_thread_hook(self, thr, r_pipe):
 		data = os.read(r_pipe, 100)
@@ -96,12 +96,12 @@ This loops sending and receiving. Also we add one timer thread to be executed af
 cancel the read/write threads and this ends the app.
 
 
-from mypseudothreads import MyPseudoThreads 
+from kpseudothreads import KPseudoThreads 
 import os
-class SimpleTimerClass(MyPseudoThreads):
+class SimpleTimerClass(KPseudoThreads):
 	
 	def __init__(self):
-		MyPseudoThreads.__init__(self, "Thread", MyPseudoThreads.LOG_DBG, MyPseudoThreads.LOG_CONSOLE, debug=False)
+		KPseudoThreads.__init__(self, "Thread", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, debug=False)
 		
 	def read_thread_hook(self, thr, w_pipe):
 		data = os.read(thr.socket, 100)
@@ -132,7 +132,7 @@ os.close(w_pipe)
 The next examples demonstrate the use of the MyTask class. It allows starting pseudo threads inside real threads:
 
 
-from mypseudothreads import MyTask 
+from kpseudothreads import MyTask 
 import os
 import time
 class Something(MyTask):
@@ -160,8 +160,8 @@ $ ps afx | grep example
 
 This is server/client inside real threads:
 
-from mypseudothreads import MyTask 
-from mypseudothreads import MyPseudoThreads 
+from kpseudothreads import MyTask 
+from kpseudothreads import KPseudoThreads 
 import os
 import time
 
@@ -191,7 +191,7 @@ class Client(MyTask):
 class Server(MyTask):
     def __init__(self, pipes):
         self.pipes = pipes
-        MyTask.__init__(self, log_facility=MyPseudoThreads.LOG_CONSOLE, debug=True)
+        MyTask.__init__(self, log_facility=KPseudoThreads.LOG_CONSOLE, debug=True)
         
     def task_pre_run_hook(self):
         self.pipe = self.pipes[0]
@@ -235,7 +235,7 @@ client.task_stop()
 
 Api:
 
-MyPseudoThreads(name="", log_level=LOG_ERR, log_facility=LOG_NOLOG, debug=None)
+KPseudoThreads(name="", log_level=LOG_ERR, log_facility=LOG_NOLOG, debug=None)
 
 Log(self, prio, msg):
 add_read_thread(self, name, socket, function, args):
@@ -250,7 +250,7 @@ threads_run(self):
 
 
 
-MyTask(self, task_name="", log_level=MyPseudoThreads.LOG_ERR, log_facility=MyPseudoThreads.LOG_NOLOG, debug=None):
+MyTask(self, task_name="", log_level=KPseudoThreads.LOG_ERR, log_facility=KPseudoThreads.LOG_NOLOG, debug=None):
 def send_msg_2_child(self, msg):
 def task_stop(self):
 def add_hook_for_msgs_from_child_(self, parent, function): 
@@ -265,7 +265,7 @@ def child_send_msg_to_parent(self, msg=""):
 
 Internals:
 
-MyPseudoThreads - 
+KPseudoThreads - 
 MyTask
 
 

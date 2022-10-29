@@ -23,7 +23,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 import sys
 sys.path.append('..')
-from mypseudothreads import *
+from kpseudothreads import *
 import traceback
 import random 
 import time
@@ -36,7 +36,7 @@ from datetime import datetime
     client:
         python3 Test2_ServerClient.py 
     DISPLAY - show read/write thread executions
-    Threads debug can be enabled - see MyPseudoThreads constructor
+    Threads debug can be enabled - see KPseudoThreads constructor
 
     The difference with the test 2 ist that here we read the whole buffer
 """
@@ -68,7 +68,7 @@ class ServerClient():
         self.cl_timestamp = now
         self.cl_timer_thr = self.parent.add_timer_thread("Print_statistic{}".format(self.addr), 5000, self.timer_client_print_stat, None)   
     
-class Server(MyPseudoThreads):
+class Server(KPseudoThreads):
     
     def __init__(self):
         self.msg_size = DATA_PORTION
@@ -77,7 +77,7 @@ class Server(MyPseudoThreads):
         self.counter_read_all = 0
         self.counter_send_all = 0
         self.clients = []
-        MyPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE)
+        KPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE)
         self.timestamp = time.time_ns()
     def init_server(self):
         for res in socket.getaddrinfo("127.0.0.1", PORT , socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE):
@@ -169,11 +169,11 @@ class ClientClient():
             self.write_buffer[b] = b%256
         self.write_index = 0
 
-class Client(MyPseudoThreads):
+class Client(KPseudoThreads):
     
     def __init__(self):
         self.msg_size = DATA_PORTION
-        MyPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE)
+        KPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE)
         
     def start_connection(self):
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM);

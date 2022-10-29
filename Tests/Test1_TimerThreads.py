@@ -23,7 +23,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 import sys
 sys.path.append('..')
-from mypseudothreads import *
+from kpseudothreads import *
 import traceback
 import random 
 import time
@@ -40,10 +40,10 @@ from datetime import datetime
 	
 """
 DISPLAY=True
-class TimerThreadTest_1(MyPseudoThreads):
+class TimerThreadTest_1(KPseudoThreads):
 	
 	def __init__(self, count_threads, max_count):
-		MyPseudoThreads.__init__(self, "SimpleStateMachineApp", LOG_DBG, LOG_CONSOLE)
+		KPseudoThreads.__init__(self, "SimpleStateMachineApp", LOG_DBG, LOG_CONSOLE)
 		self.max_delay = 0
 		self.max_count = max_count
 		self.count_threads = count_threads

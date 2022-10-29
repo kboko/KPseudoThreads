@@ -22,16 +22,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 
-from mypseudothreads import MyPseudoThreads 
+from kpseudothreads import KPseudoThreads 
 
-class SimpleTimerClass(MyPseudoThreads):
+class SimpleTimerClass(KPseudoThreads):
 	
 	def __init__(self):
 		self.count = 0
-		MyPseudoThreads.__init__(self)
+		KPseudoThreads.__init__(self)
 		
 	def timer_1_fire(self, thr, arg):
-		self.Log(MyPseudoThreads.LOG_INFO, "Thread Fired")
+		print ("Thread Fired")
 
 something = SimpleTimerClass()
 something.add_timer_thread("Timer_1", 2000, something.timer_1_fire, None)

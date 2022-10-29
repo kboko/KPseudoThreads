@@ -23,7 +23,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 import sys
 sys.path.append('..')
-from mypseudothreads import *
+from kpseudothreads import *
 import traceback
 import random 
 import time
@@ -36,20 +36,20 @@ from datetime import datetime
     client:
         python3 Test2_ServerClient.py 
     DISPLAY - show read/write thread executions
-    Threads debug can be enabled - see MyPseudoThreads constructor
+    Threads debug can be enabled - see KPseudoThreads constructor
 
     The difference with the test 2 ist that here we read the whole buffer
 """
 DISPLAY=False
 PORT=34455
 DATA_PORTION = 1024009
-class Server(MyPseudoThreads):
+class Server(KPseudoThreads):
     
     def __init__(self):
         self.msg_size = DATA_PORTION
         self.conn = None
         self.addr = None
-        MyPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE)
+        KPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE)
         
     def init_server(self):
         for res in socket.getaddrinfo("127.0.0.1", PORT , socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE):
@@ -147,7 +147,7 @@ class Server(MyPseudoThreads):
 
 
 
-class Client(MyPseudoThreads):
+class Client(KPseudoThreads):
     
     def __init__(self):
         self.msg_size = DATA_PORTION
@@ -157,7 +157,7 @@ class Client(MyPseudoThreads):
             self.write_buffer[b] = b%256
         self.write_index = 0
 
-        MyPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE)
+        KPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE)
         
     def init_client(self):
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
