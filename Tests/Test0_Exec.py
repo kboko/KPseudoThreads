@@ -25,8 +25,6 @@ SOFTWARE."""
 import sys
 sys.path.append('..')
 from kpseudothreads import *
-import traceback
-import random 
 import time
 from datetime import datetime
 
@@ -35,7 +33,7 @@ class Test_0(KPseudoThreads):
 	
 	def __init__(self, count_threads):
 		self.count_threads = count_threads
-		KPseudoThreads.__init__(self, "SimpleStateMachineApp", LOG_DBG, LOG_CONSOLE)
+		KPseudoThreads.__init__(self, "SimpleStateMachineApp")
 		
 
 	def init_threads(self):
@@ -50,19 +48,8 @@ class Test_0(KPseudoThreads):
 		#new_thread = self.add_execute_thread("Exec_{}".format (a), self.exec_thread_fire, a)
 		
 
-def main():
-	# MAIN
-	something = Test_0(10)
-	try:
-		something.Log(LOG_INFO, "Starting",)
-		something.init_threads()
-		something.threads_run();
-		something.Log(LOG_INFO, "All threads done. Stop")              
-	except KeyboardInterrupt:
-		traceback.print_exc()
-		exit (1)
-	except:
-		traceback.print_exc()
-	
-if __name__ == "__main__":
-	main()  
+something = Test_0(10)
+print("Starting")
+something.init_threads()
+something.threads_run();
+print("All threads done. Stop")              

@@ -59,7 +59,7 @@ class Server(MyTask):
         self.pipe = self.pipes[0]
         os.close(self.pipes[1])
         self.add_read_thread("Read", self.pipe, self.server_read_hook, None)
-        self.add_timer_thread("Timer", 10, self.timer_thread_hook, self.pipe)
+        self.add_timer_thread("Timer", 1000, self.timer_thread_hook, self.pipe)
     
     def server_read_hook(self, thr, arg):
         data = os.read(thr.socket, 100)

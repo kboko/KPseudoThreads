@@ -43,7 +43,7 @@ DISPLAY=True
 class TimerThreadTest_1(KPseudoThreads):
 	
 	def __init__(self, count_threads, max_count):
-		KPseudoThreads.__init__(self, "SimpleStateMachineApp", LOG_DBG, LOG_CONSOLE)
+		KPseudoThreads.__init__(self, "SimpleStateMachineApp")
 		self.max_delay = 0
 		self.max_count = max_count
 		self.count_threads = count_threads
@@ -77,11 +77,11 @@ def main():
 	# MAIN
 	something = TimerThreadTest_1( 5000, 10)
 	try:
-		something.Log(LOG_INFO, "Starting",)
+		print ("Starting")
 		something.init_threads()
 		something.threads_run();
 		print ("Max Delayed Thread= {} ms. All threads executed count {} should be {}".format(something.max_delay/1000000, something.all_threads_executed, something.max_count * something.count_threads))
-		something.Log(LOG_INFO, "All threads done. Stop")              
+		print("All threads done. Stop")              
 	except KeyboardInterrupt:
 		traceback.print_exc()
 		exit (1)

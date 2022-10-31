@@ -415,6 +415,11 @@ class MyTask (KPseudoThreads, Process):
             self.Log(KPseudoThreads.LOG_DBG, "{}: Created. Pipes Parent{}->Child{} Child{}->Parent{}".format(self.task_name, hex(id(self)) ,self.pipe_parent_to_child, \
                         self.pipe_child_from_parent, self.pipe_child_to_parent, self.pipe_parent_from_child))
     
+    def start(self):
+        super().start()
+        os.close(self.pipe_child_to_parent)
+        os.close(self.pipe_child_from_parent)
+
     # FUNCTIONS CALLED FROM PARENT CONTEXT
     def __internal_msg_from_child(self, parent):
         msg = None
@@ -445,7 +450,11 @@ class MyTask (KPseudoThreads, Process):
     
     """ send notification to the child to stop"""
     def task_stop(self):
-        self.send_msg_2_child(MyTask.MY_T_STOP)
+        try:
+            self.send_msg_2_child(MyTask.MY_T_STOP)
+        except:
+            if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: {} The child already finished".format (self.task_name, hex(id(self))))
+            pass
     
     # if Parent is KPseudoThreads - add thread to process msgs from child
     def add_hook_for_msgs_from_child_(self, parent, function): 
