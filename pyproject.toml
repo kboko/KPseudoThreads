@@ -1,0 +1,19 @@
+[project]
+name = "kpseudothreads"
+version = "0.0.1"
+authors = [
+  { name="Kaloyan Stoilov", email="stoilov.kaloyan@gmail.com" },
+]
+description = "Package implementing framework with pseudo threads"
+readme = "README.md"
+requires-python = ">=2.7"
+classifiers = [
+    "Programming Language :: Python :: 2",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/kboko/MyPseudoThreads.git"
+"Bug Tracker" = "https://github.com/kboko/MyPseudoThreads/issues"
