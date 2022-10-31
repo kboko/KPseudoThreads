@@ -21,8 +21,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
-import sys
-sys.path.append('..')
 from kpseudothreads import *
 import traceback
 import random 
@@ -54,7 +52,7 @@ class Server(MyTask):
         self.msg_size = DATA_PORTION
         self.conn = None
         self.addr = None
-        MyTask.__init__(self, "ServerTask", LOG_DBG, LOG_CONSOLE, False)
+        MyTask.__init__(self, "ServerTask", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, False)
         
     def task_pre_run_hook(self):
         for res in socket.getaddrinfo("127.0.0.1", PORT , socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE):
@@ -143,7 +141,7 @@ class Client(MyTask):
         self.write_buffer = bytearray(DATA_PORTION)
         for b in range(0, DATA_PORTION):
             self.write_buffer[b] = b%256
-        MyTask.__init__(self, "ClientTask", LOG_DBG, LOG_CONSOLE, False)
+        MyTask.__init__(self, "ClientTask", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, False)
         
     def task_pre_run_hook(self):
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM);

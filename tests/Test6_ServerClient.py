@@ -22,7 +22,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 import sys
-sys.path.append('..')
 from kpseudothreads import *
 import traceback
 import random 
@@ -70,7 +69,7 @@ class Server(MyTask):
         self.counter_read_all = 0
         self.counter_send_all = 0
         self.clients = []
-        MyTask.__init__(self, "Server", LOG_DBG, LOG_CONSOLE, False)
+        MyTask.__init__(self, "Server", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, False)
         self.timestamp = time.time_ns()
     
     def task_pre_run_hook(self):
@@ -164,7 +163,7 @@ class Client(MyTask):
             self.write_buffer[b] = b%256
         self.counter_read_all = 0
         self.counter_send_all = 0
-        MyTask.__init__(self, name, LOG_DBG, LOG_CONSOLE, False)
+        MyTask.__init__(self, name, KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, False)
         
     def task_pre_run_hook(self):
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM);

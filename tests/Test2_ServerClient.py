@@ -22,7 +22,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
 import sys
-sys.path.append('..')
 from kpseudothreads import *
 import traceback
 import random 
@@ -54,7 +53,7 @@ class Server(KPseudoThreads):
         self.msg_size = DATA_PORTION
         self.conn = None
         self.addr = None
-        KPseudoThreads.__init__(self, "Server", LOG_DBG, LOG_CONSOLE, False)
+        KPseudoThreads.__init__(self, "Server", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, False)
         
     def init_server(self):
         for res in socket.getaddrinfo("127.0.0.1", PORT , socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE):
@@ -143,7 +142,7 @@ class Client(KPseudoThreads):
         self.write_buffer = bytearray(DATA_PORTION)
         for b in range(0, DATA_PORTION):
             self.write_buffer[b] = b%256
-        KPseudoThreads.__init__(self, "Client", LOG_DBG, LOG_CONSOLE, False)
+        KPseudoThreads.__init__(self, "Client", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, False)
         
     def init_client(self):
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
