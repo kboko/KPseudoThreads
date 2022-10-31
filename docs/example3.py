@@ -46,7 +46,7 @@ class Client(MyTask):
         if not s:
             print ("Client close", thr.socket) 
             os.close(thr.socket)
-            self.child_close_read_thread_from_parent()
+            self.child_cancel_read_thread_from_parent()
             return
         self.add_write_thread("Write", thr.socket, self.client_write_hook, None)
 
@@ -68,7 +68,7 @@ class Server(MyTask):
 
     def timer_thread_hook(self, thr, pipe):
         self.cancel_thread_by_sock(pipe)
-        self.child_close_read_thread_from_parent()
+        self.child_cancel_read_thread_from_parent()
         print ("Server close", pipe)
         os.close(pipe)
 

@@ -55,7 +55,11 @@ Works on python 2 and 3
 
 ## Installation
 
-ToDo
+Download the package from here:
+  https://github.com/kboko/KPseudoThreads/blob/main/dist/
+
+  pip3 install kpseudothreads-0.0.1.tar.gz 
+
 
 ## Short introduction
 
@@ -227,7 +231,7 @@ This is complex example - with server/clinet running in separate processes and a
             if not s:
                 print ("Client close", thr.socket) 
                 os.close(thr.socket)
-                self.child_close_read_thread_from_parent()
+                self.child_cancel_read_thread_from_parent()
                 return
             self.add_write_thread("Write", thr.socket, self.client_write_hook, None)
     
@@ -249,7 +253,7 @@ This is complex example - with server/clinet running in separate processes and a
     
         def timer_thread_hook(self, thr, pipe):
             self.cancel_thread_by_sock(pipe)
-            self.child_close_read_thread_from_parent()
+            self.child_cancel_read_thread_from_parent()
             print ("Server close", pipe)
             os.close(pipe)
     
@@ -306,7 +310,7 @@ threads_run(self):*
 def send_msg_2_child(self, msg):
 def task_stop(self):
 def add_hook_for_msgs_from_child_(self, parent, function): 
-def child_close_read_thread_from_parent(self):
+def child_cancel_read_thread_from_parent(self):
 def task_pre_run_hook(self):
 def child_pre_stop_hook(self):
 def child_process_msg_from_parent_hook(self, msg):

@@ -56,10 +56,13 @@ from multiprocessing import Process
 from multiprocessing import Pipe
 #from systemd import journal
 
-
+""" This class stores the thread's data
+    socket is only for read and write relevanr
+    time only for timer threads
+    to_delete has special meaning - if a thread is
+    inactive and schedulet for deletion - this var is true
+"""
 class KPseudoThread():
-
-
     READ = 0
     WRITE = 1
     EXEC = 2
@@ -77,7 +80,12 @@ class KPseudoThread():
     def __lt__(self, b):
         return self.time < b.time
 
-    
+"""
+    Main class used for threads - the user of the module
+    inherits this class and may override some of the functions
+    Has lists for the 4 types of threads (KPseudoThread objects) 
+    and some variables for optimisation purposes
+"""    
 class KPseudoThreads(): 
     # those are the log levels
     LOG_CRIT=0
@@ -110,7 +118,8 @@ class KPseudoThreads():
         self.threads_exec = collections.deque()
 
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "Create threads {}".format(hex(id(self)))) 
-
+    """ Used for logging, 
+    prio is the priority, msg is the message"""
     def Log(self, prio, msg):
         if self.mpt_facility == KPseudoThreads.LOG_NOLOG: 
             return
@@ -120,7 +129,16 @@ class KPseudoThreads():
             print ("{}.{}:{}".format (self.mpt_name, self.mpt_level, msg))
         if self.mpt_facility & KPseudoThreads.LOG_SYSLOG:
             journal.send("{}.{}:{}".format (self.mpt_name, self.mpt_level, msg))
+    """ this function registers a read thread
+        name - the name of the thread
+        socket - the file descriptor or socket on witch read is expected
+        function - hook function to be executed if on the FD is ready for reading
+        args - arguments passed to the hook function
 
+        Returns an object of KPseudoThread
+
+        If there is already Thread object marked to deletion, this function will reuse it
+    """
     def add_read_thread(self, name, socket, function, args):
         
         for item in self.threads_read:
@@ -140,7 +158,16 @@ class KPseudoThreads():
         self.threads_read.append(new_thread)
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: Adding r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket, name, function.__name__, args, hex(id(self))))
         return new_thread
-    
+    """ This function registers a write thread
+        name - the name of the thread
+        socket - the file descriptor or socket on witch write is expected
+        function - hook function to be executed if on the FD is ready for writing
+        args - arguments passed to the hook function
+
+        Returns an object of KPseudoThread
+
+        If there is already Thread object marked to deletion, this function will reuse it
+    """
     def add_write_thread(self,name, socket, function, args):
         
         for item in self.threads_write:
@@ -160,7 +187,15 @@ class KPseudoThreads():
         self.threads_write.append(new_thread)
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Adding w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket, name, function.__name__, args, hex(id(self))))
         return new_thread
-        
+    """  
+        Register timer thread
+        name - the name of the thread
+        after_ms - when the thread should be executed - in ms
+        function - hook function to be executed when the timeout elaps
+        args - arguments passed to the hook function
+
+        Returns an object of KPseudoThread
+    """
     def add_timer_thread(self, name, after_ms, function, args):
         #return None
         when = time.time_ns() + after_ms * 1000000
@@ -171,14 +206,25 @@ class KPseudoThreads():
 
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Adding t-thread {} AFTER=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),after_ms, name, function.__name__, args, hex(id(self))))
         return new_thread
+     """  
+        Register exec thread - functionality is same as thread with timeout 0
+        However those threads are executed first.
+
+        name - the name of the thread
+        function - hook function to be executed when the timeout elaps
+        args - arguments passed to the hook function
         
+        Returns an object of KPseudoThread
+    """   
     def add_execute_thread(self, name, function, args):
         
         new_thread = KPseudoThread(name, KPseudoThread.EXEC,  None, function, args)
         self.threads_exec.append(new_thread)
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Adding ex-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), name, function.__name__, args, hex(id(self))))
         return new_thread
-    
+    """ Cancels already scheduled thread
+        Returns: None
+    """
     def cancel_thread(self, thread):
         if thread.to_delete == True:
             return
@@ -189,7 +235,10 @@ class KPseudoThreads():
         thread.to_delete = True
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Cancel thread {} \"{}\" FUNC=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(thread)), thread.thread_name, thread.function.__name__, hex(id(self))))
         return
-            
+    """ 
+        Cancels already scheduled threads for particular socket
+        Returns: None
+    """      
     def cancel_thread_by_sock(self, sock):
         for e in self.threads_read:
             if e.socket == sock:
@@ -207,11 +256,16 @@ class KPseudoThreads():
                 e.to_delete = True
                 if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Cancel w-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(e)),e.thread_name, e.function.__name__, e.args, hex(id(self))))
                 break
-            
+    """
+        This function cancels the infinity loop and causes return from threads_run() function.
+    """       
         
     def threads_stop(self):
         self.threads_stop_loop=True    
     
+    """
+        Used for debugging
+    """
     def threads_dump(self, msg):
         self.Log(KPseudoThreads.LOG_DBG,"DUMP Threads " + msg)
         for e in self.threads_write:
@@ -224,7 +278,11 @@ class KPseudoThreads():
             self.Log(KPseudoThreads.LOG_DBG, "{}: T {} Sock {} closed {} time {} func {} todel {}".format (self.mpt_name, hex(id(e)), e.socket, e.socket.closed ,  e.time , e.function.__name__, e.to_delete))
         self.Log(KPseudoThreads.LOG_DBG, "DUMP Threads END")    
         
-        
+    """
+        Main function of the module
+        Implements infinity loop and process the events.   
+        See comments inside
+    """
     def threads_run(self):
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: RUN threads for {}".format (self.mpt_name, hex(id(self))))
         while self.threads_stop_loop != True:
@@ -292,6 +350,9 @@ class KPseudoThreads():
                 for fd in writable:
                     llen = len(self.threads_write) 
                     i = 0 
+                    """ we interate only untill the initial count of sockets
+                        Inside the Hook is possible that a new socket is added - we do not want to process them
+                    """
                     while i < llen:  
                         e = self.threads_write[i]
                         i = i + 1
@@ -300,9 +361,7 @@ class KPseudoThreads():
                             e.to_delete = True
                             e.function(e, e.args)
                             if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: After w-thr {} {} todel {}".format(self.mpt_name, e.function.__name__, hex(id(e)), e.to_delete))
-                            """in case the thread add new read thread for same socket
-                            we make cancel as we do not want read thread to be executed twice
-                            """
+                            
                             break
 
             #Check if we have some thint to READ
@@ -311,6 +370,9 @@ class KPseudoThreads():
                 for fd in readable:
                     llen = len(self.threads_read)  
                     i = 0
+                    """ we interate only untill the initial count of sockets
+                        Inside the Hook is possible that a new socket is added - we do not want to process them
+                    """
                     while i < llen:  
                         e = self.threads_read[i]
                         i = i + 1
@@ -385,7 +447,8 @@ child_send_msg_to_parent - send messages to the Parent
 child_pre_stop_hook - called when no threads exists and the client is going to stop
 child_process_msg_from_parent_hook  messages from the parent are processed here
 
-To use Threading unkomment
+To switch between Thread or Process ()
+ see --> Use threading and uncommend the one and commenct the other
 """
 # --> Use Threading: 
 #class MyTask (KPseudoThreads, Thread):           
@@ -414,7 +477,10 @@ class MyTask (KPseudoThreads, Process):
         if self.mpt_debug: 
             self.Log(KPseudoThreads.LOG_DBG, "{}: Created. Pipes Parent{}->Child{} Child{}->Parent{}".format(self.task_name, hex(id(self)) ,self.pipe_parent_to_child, \
                         self.pipe_child_from_parent, self.pipe_child_to_parent, self.pipe_parent_from_child))
-    
+    """
+        This funciton starts spawning - we are still in parent context
+        We close the unised pipes (those are used from child - in childs context )
+    """
     def start(self):
         super().start()
         os.close(self.pipe_child_to_parent)
@@ -441,14 +507,17 @@ class MyTask (KPseudoThreads, Process):
             # add read thread again
             parent.add_read_thread (self.task_name, self.pipe_parent_from_child, self._int_msg_from_child, parent)
 
-    # Parent use those below:        
+    # PARENT may USE whose:
     
-    """ send_msg_2_child - The Parent can send data to the child"""
+    """ Used from Parent to send data to the child"""
     def send_msg_2_child(self, msg):
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: {} msg_to_child {}".format (self.task_name, hex(id(self)), msg))
         return os.write(self.pipe_parent_to_child, MyTask.MY_T_USER + msg)
     
-    """ send notification to the child to stop"""
+    """ Send notification to the child to stop
+        This function will actually send something, then the child will avake and process MY_T_STOP
+        this breaks the infinity loop and child ends
+    """
     def task_stop(self):
         try:
             self.send_msg_2_child(MyTask.MY_T_STOP)
@@ -456,7 +525,9 @@ class MyTask (KPseudoThreads, Process):
             if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: {} The child already finished".format (self.task_name, hex(id(self))))
             pass
     
-    # if Parent is KPseudoThreads - add thread to process msgs from child
+    """ If Parent implements KPseudoThreads 
+        this function will add thread to process msgs from child
+    """
     def add_hook_for_msgs_from_child_(self, parent, function): 
         self.from_child_hook = function
         parent.add_read_thread (self.task_name, self.pipe_parent_from_child, self.__internal_msg_from_child, parent)
@@ -464,10 +535,20 @@ class MyTask (KPseudoThreads, Process):
 
 
     # FUNCTIONS CALLED INSIDE CHILD CONTEXT
-  
-    def child_close_read_thread_from_parent(self):
+    """
+        Used to cancel the thread that reads 
+        messages from the parent. Note the client should close it before leave
+    """
+    def child_cancel_read_thread_from_parent(self):
         self.cancel_thread (self.msg_from_parent_thread)
-    
+    """
+        This function is called in Child context
+        It calls task_pre_run_hook hook()
+        Then run the infinity loop
+        If all done - calls child_pre_stop_hook()
+        Sends message to the parent, that it will end 
+        and do cleanup
+    """
     def run(self):
         
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Started".format(self.task_name,  hex(id(self))))
@@ -488,7 +569,7 @@ class MyTask (KPseudoThreads, Process):
         os.close(self.pipe_child_from_parent)
 
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: {} ended".format(self.task_name, hex(id(self))))
-
+    """ Internal function """
     def __child_internal_msg_from_parent(self, arg):
         msg = os.read(self.pipe_child_from_parent,1024)
         # call child funciton
@@ -498,20 +579,29 @@ class MyTask (KPseudoThreads, Process):
         else:
             # add read thread again
             self.add_read_thread ("pipe_child_from_parent", self.pipe_child_from_parent, self._child__internal_msg_from_parent, self)
+    
+    def child_send_msg_to_parent(self, msg=""):
+        return os.write(self.pipe_child_to_parent, MyTask.MY_T_USER + msg)
 
     # Virtual functons
+    """ Function called inside child's contect
+        Used basicaly for adding some read/write/... threads before the infinity loop starts
+    """
     def task_pre_run_hook(self):
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: child_started_hook - Implement me".format(self.task_name))
         pass   
-           
+    """
+        Function called inside child's context - should be used for some sort of actions before the child disappear
+    """    
     def child_pre_stop_hook(self):
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: child_pre_stop_hook - Implement me".format(self.task_name))
         pass 
-        
+    """
+        Hook used inside child's contect to process messages comming from the parent
+    """
     def child_process_msg_from_parent_hook(self, msg):
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: child_process_msg_from_parent_hook- Implement me".format(self.task_name))
         pass       
     
-    def child_send_msg_to_parent(self, msg=""):
-        return os.write(self.pipe_child_to_parent, MyTask.MY_T_USER + msg)
+    
         
