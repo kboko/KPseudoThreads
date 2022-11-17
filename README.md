@@ -51,7 +51,7 @@ https://github.com/kboko/KPseudoThreads.git
 
 ## Requirements
 
-Works on python 2 and 3
+Works on 3
 
 ## Installation
 
@@ -99,6 +99,21 @@ This code starts thread timer with timeout 2 sec:
         # now we start the loop here
         something.threads_run();
 
+The same code, but without inheritance:
+
+        from kpseudothreads import KPseudoThreads 
+        # create threads object
+        threads =  KPseudoThreads("Thread")
+        # hook function that is executed    
+        def timer_fire(thr, arg):
+            print("Thread Fired")
+
+        # we register one timer thread with name Timer_1, executed after 2000 ms. Hook function is timer_fire() and no arguments are suppled
+        threads.add_timer_thread("Timer_1", 2000, timer_fire, None)
+
+        # now we start the loop here
+        threads.threads_run();  
+
 
 ### Read/Write Threads:
 This example starts 2 Threads - read and write. 
@@ -129,6 +144,34 @@ This example starts 2 Threads - read and write.
     # close the pipe
     os.close(r_pipe)
     os.close(w_pipe)
+
+Same code without inheritance:
+
+    from kpseudothreads import KPseudoThreads 
+    import os
+    # this is the read hook, executed when there is something for reading on the pipe   
+    def read_thread_hook(thr, r_pipe):
+           data = os.read(r_pipe, 100)
+           print ("Received", data)
+    # write function - called when the pipe is available for sending data
+    def write_thread_hook(thr, w_pipe):
+           print ("Sending..")
+           os.write(w_pipe, b"Something")
+        
+    # create threads object
+    threads = KPseudoThreads("Thread", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, debug=False)
+    # create a pipe
+    r_pipe,w_pipe = os.pipe()
+    # register read and write threads
+    threads.add_read_thread("Read", r_pipe, read_thread_hook, r_pipe)
+    threads.add_write_thread("Write", w_pipe, write_thread_hook, w_pipe)
+    # run
+    threads.threads_run();
+    # close the pipe
+    os.close(r_pipe)
+    os.close(w_pipe)
+
+
 
 ### Read/Write and Timer Threads:
 This example demonstrate continuous write and read on a pipe. After 100 ms the threads are canceled and the app stops.
@@ -167,6 +210,46 @@ This example demonstrate continuous write and read on a pipe. After 100 ms the t
     #close pipes
     os.close(r_pipe)
     os.close(w_pipe)
+
+Same code without inheritance:
+
+    from kpseudothreads import KPseudoThreads 
+    import os
+
+
+    # read hook - reads the data and before exiting adds once more the read and write threads
+    def read_thread_hook(thr, w_pipe):
+        threads = thr.parent
+        data = os.read(thr.socket, 100)
+        print ("Received", data)
+        threads.add_read_thread("Read", thr.socket, read_thread_hook, w_pipe)
+        threads.add_write_thread("Write", w_pipe, write_thread_hook, thr.socket)
+    # write thread - sending the data
+    def write_thread_hook(thr, r_pipe):
+        print ("Sending..")
+        os.write(thr.socket, b"Something")
+    # this thread cancels the read and write threads. As there is no more threads left - this will actually break the loop and the program exists drom thread_run()
+    def timer_thread_hook(thr, arg):
+        threads = thr.parent
+        r_pipe,w_pipe = arg
+        print ("Stop")
+        threads.cancel_thread_by_sock(r_pipe)
+        threads.cancel_thread_by_sock(w_pipe)
+
+    # Pipe
+    r_pipe,w_pipe = os.pipe()
+    # create object
+    threads = KPseudoThreads("Thread", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE, debug=False)
+    # add read, write and timer threads
+    threads.add_read_thread("Read", r_pipe, read_thread_hook, w_pipe)
+    threads.add_write_thread("Write", w_pipe, write_thread_hook, r_pipe)
+    threads.add_timer_thread("Timer", 100, timer_thread_hook, (r_pipe,w_pipe))
+    # run
+    threads.threads_run();
+    #close pipes
+    os.close(r_pipe)
+    os.close(w_pipe)
+
 
 ### Read/Write inside real threads with MyTask class:
 The next examples demonstrate the use of the MyTask class. It allows starting pseudo threads inside a real thread:

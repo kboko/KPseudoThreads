@@ -29,26 +29,17 @@ import time
 from datetime import datetime
 
 DISPLAY=True
-class Test_0(KPseudoThreads):
+
+def exec_thread_fire(thread, a):
+	time.sleep(1)
+	print (datetime.now(), "FIRE {}".format (a))
+	new_thread = threads.add_execute_thread("Exec_{}".format (a), exec_thread_fire, a)
+		
+
+threads = KPseudoThreads("SimpleStateMachineApp")
+for a in range(10):
+	thread = threads.add_execute_thread("Exec_{}".format (a), exec_thread_fire, a)
 	
-	def __init__(self, count_threads):
-		self.count_threads = count_threads
-		KPseudoThreads.__init__(self, "SimpleStateMachineApp")
-		
-
-	def init_threads(self):
-		for a in range(self.count_threads):
-			thread = self.add_execute_thread("Exec_{}".format (a), self.exec_thread_fire, a)
-
-		
-	def exec_thread_fire(self, thread, a):
-		time.sleep(1)
-		print (datetime.now(), "FIRE {}".format (a))
-		#new_thread = self.add_execute_thread("Exec_{}".format (a), self.exec_thread_fire, a)
-		
-
-something = Test_0(10)
 print("Starting")
-something.init_threads()
-something.threads_run();
+threads.threads_run();
 print("All threads done. Stop")              

@@ -67,7 +67,7 @@ class KPseudoThread():
     WRITE = 1
     EXEC = 2
     TIMER = 3
-    def __init__(self, thread_name, thread_type, socket, function, args, time = None):
+    def __init__(self, parent, thread_name, thread_type, socket, function, args, time = None):
         self.thread_name = thread_name
         self.thread_type = thread_type
         self.socket = socket
@@ -75,6 +75,7 @@ class KPseudoThread():
         self.time = time
         self.function = function
         self.to_delete = False
+        self.parent = parent
     def __cmp__(self, other):
         return self.time - b.time
     def __lt__(self, b):
@@ -154,7 +155,7 @@ class KPseudoThreads():
                     self.deleted_read_threads = self.deleted_read_threads - 1
                     if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: Reuse r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(item)),socket, name, function.__name__, args, hex(id(self))))
                     return item
-        new_thread = KPseudoThread(name, KPseudoThread.READ, socket, function, args)
+        new_thread = KPseudoThread(self, name, KPseudoThread.READ, socket, function, args)
         self.threads_read.append(new_thread)
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: Adding r-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)),socket, name, function.__name__, args, hex(id(self))))
         return new_thread
@@ -183,7 +184,7 @@ class KPseudoThreads():
                     self.deleted_write_threads = self.deleted_write_threads - 1
                     if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Reuse w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(item)), socket, name, function.__name__, args, hex(id(self))))
                     return item
-        new_thread = KPseudoThread(name, KPseudoThread.WRITE, socket, function, args)
+        new_thread = KPseudoThread(self, name, KPseudoThread.WRITE, socket, function, args)
         self.threads_write.append(new_thread)
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Adding w-thread {} FD=\"{}\" \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), socket, name, function.__name__, args, hex(id(self))))
         return new_thread
@@ -200,7 +201,7 @@ class KPseudoThreads():
         #return None
         when = time.time_ns() + after_ms * 1000000
         
-        new_thread = KPseudoThread(name, KPseudoThread.TIMER, None, function, args, when)
+        new_thread = KPseudoThread(self, name, KPseudoThread.TIMER, None, function, args, when)
 
         heapq.heappush(self.threads_timer, new_thread)
 
@@ -218,7 +219,7 @@ class KPseudoThreads():
     """   
     def add_execute_thread(self, name, function, args):
         
-        new_thread = KPseudoThread(name, KPseudoThread.EXEC,  None, function, args)
+        new_thread = KPseudoThread(self, name, KPseudoThread.EXEC,  None, function, args)
         self.threads_exec.append(new_thread)
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Adding ex-thread {} \"{}\" FUNC=\"{}\" ARGS=\"{}\" TASK=\"{}\"".format(self.mpt_name, hex(id(new_thread)), name, function.__name__, args, hex(id(self))))
         return new_thread
