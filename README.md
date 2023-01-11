@@ -396,7 +396,7 @@ def add_hook_for_msgs_from_child_(self, parent, function):
 def child_cancel_read_thread_from_parent(self):
 def task_pre_run_hook(self):
 def child_pre_stop_hook(self):
-def child_process_msg_from_parent_hook(self, msg):
+def add_hook_for_msgs_from_parent(self, msg):
 def child_send_msg_to_parent(self, msg=""):*
 
 

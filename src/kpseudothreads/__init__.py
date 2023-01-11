@@ -441,12 +441,14 @@ this pipe
 
 The Child:
 
+add_hook_for_msgs_from_parent - add hook for processing the messages from the parent
+
 Implements the follwing functions
 
 child_started_hook - here is init work done - user may add read/timer/write threads, open sockets etc.
 child_send_msg_to_parent - send messages to the Parent
 child_pre_stop_hook - called when no threads exists and the client is going to stop
-child_process_msg_from_parent_hook  messages from the parent are processed here
+
 
 To switch between Thread or Process ()
  see --> Use threading and uncommend the one and commenct the other
@@ -470,7 +472,10 @@ class MyTask (KPseudoThreads, Process):
         
         self.task_name = task_name
         self.mpt_debug = debug
+
         self.from_child_hook = None
+        self.from_parent_hook = None
+
         #two pipes for communication
         self.pipe_child_from_parent, self.pipe_parent_to_child = os.pipe()
         self.pipe_parent_from_child, self.pipe_child_to_parent = os.pipe()
@@ -488,7 +493,7 @@ class MyTask (KPseudoThreads, Process):
         os.close(self.pipe_child_from_parent)
 
     # FUNCTIONS CALLED FROM PARENT CONTEXT
-    def __internal_msg_from_child(self, parent):
+    def __internal_msg_from_child(self, thread, parent):
         msg = None
         try:
             msg = os.read (self.pipe_parent_from_child, 1024)
@@ -502,11 +507,11 @@ class MyTask (KPseudoThreads, Process):
             os.close(self.pipe_parent_from_child)
         
         if msg and self.from_child_hook:
-            self.from_child_hook(msg[1:s])
+            self.from_child_hook(msg[1:])
         
         if msg and msg != MyTask.MY_C_END:
             # add read thread again
-            parent.add_read_thread (self.task_name, self.pipe_parent_from_child, self._int_msg_from_child, parent)
+            parent.add_read_thread (self.task_name, self.pipe_parent_from_child, self.__internal_msg_from_child, parent)
 
     # PARENT may USE whose:
     
@@ -571,15 +576,15 @@ class MyTask (KPseudoThreads, Process):
 
         if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: {} ended".format(self.task_name, hex(id(self))))
     """ Internal function """
-    def __child_internal_msg_from_parent(self, arg):
+    def __child_internal_msg_from_parent(self, thread, arg):
         msg = os.read(self.pipe_child_from_parent,1024)
         # call child funciton
-        if self.child_process_msg_from_parent_hook (msg) == MyTask.MY_T_STOP or msg == MyTask.MY_T_STOP:
+        if (self.from_parent_hook and self.from_parent_hook (msg[1:]) == MyTask.MY_T_STOP) or msg == MyTask.MY_T_STOP:
             self.threads_stop()
             if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: Stopping Child", self.task_name,)
         else:
             # add read thread again
-            self.add_read_thread ("pipe_child_from_parent", self.pipe_child_from_parent, self._child__internal_msg_from_parent, self)
+            self.add_read_thread ("pipe_child_from_parent", self.pipe_child_from_parent, self.__child_internal_msg_from_parent, self)
     
     def child_send_msg_to_parent(self, msg=""):
         return os.write(self.pipe_child_to_parent, MyTask.MY_T_USER + msg)
@@ -600,9 +605,9 @@ class MyTask (KPseudoThreads, Process):
     """
         Hook used inside child's contect to process messages comming from the parent
     """
-    def child_process_msg_from_parent_hook(self, msg):
-        if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: child_process_msg_from_parent_hook- Implement me".format(self.task_name))
-        pass       
+    def add_hook_for_msgs_from_parent(self, function): 
+        self.from_parent_hook = function
+    
     
     
         

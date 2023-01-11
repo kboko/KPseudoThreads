@@ -196,7 +196,7 @@ The followinfg functions  are called if they are impelemented:
 - msg_from_parent(
 - task_pre_run_hook()
 - child_pre_stop_hook()
-- child_process_msg_from_parent_hook()
+
 
 #</dia:string>
           </dia:attribute>
