@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kpseudothreads"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
   { name="Kaloyan Stoilov", email="stoilov.kaloyan@gmail.com" },
 ]
 description = "Package implementing framework with pseudo threads"
 readme = "README.md"
-requires-python = ">=3.4"
+requires-python = ">=2.7"
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Programming Language :: Python",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]

@@ -39,8 +39,8 @@ Or starting pseudo threads inside real threads
  We can see here that there are 2 processes started  
  
     $ ps afx | grep example
-      21638 pts/0    S+     0:00  |   \_ python3 ./example4.py
-      21639 pts/0    S+     0:00  |       \_ python3 ./example4.py
+      21638 pts/0    S+     0:00  |   \_ python ./example4.py
+      21639 pts/0    S+     0:00  |       \_ python ./example4.py
 
 
 It is released under a free software license, see LICENSE for more details.
@@ -51,7 +51,7 @@ https://github.com/kboko/KPseudoThreads.git
 
 ## Requirements
 
-Works on 3
+Works on 3 and python 2
 
 ## Installation
 
@@ -283,8 +283,8 @@ The child starts timer thread inside. After that starts the infinity loop of the
  We can see here that there are 2 processes started  
  
     $ ps afx | grep example
-      21638 pts/0    S+     0:00  |   \_ python3 ./example4.py
-      21639 pts/0    S+     0:00  |       \_ python3 ./example4.py
+      21638 pts/0    S+     0:00  |   \_ python ./example4.py
+      21639 pts/0    S+     0:00  |       \_ python ./example4.py
 
 
 ### Server/Client with MyTask class:

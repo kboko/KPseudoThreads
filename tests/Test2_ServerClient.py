@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 """
 MIT License
 
@@ -35,9 +35,9 @@ from datetime import datetime
 
     Starts client or server and send data
     Server:
-        python3 Test2_ServerClient.py server
+        python Test2_ServerClient.py server
     client:
-        python3 Test2_ServerClient.py 
+        python Test2_ServerClient.py 
     DISPLAY - show read/write thread executions
     Threads debug can be enabled - see KPseudoThreads constructor
     DATA_PORTION - this sets the data to be send, make it not so big, Use Test3 for bigger chunks
@@ -82,13 +82,13 @@ class Server(KPseudoThreads):
         self.write_buffer = bytearray(DATA_PORTION)
         for b in range(0, DATA_PORTION):
             self.write_buffer[b] = b%256
-        self.timestamp = time.time_ns()
+        self.timestamp = time.time()*1000000000
         self.add_read_thread ("read_from_client", self.conn, self.read_from_client, None)
         self.timer_thr = self.add_timer_thread("Print_statistic", 5000, self.timer_print_stat, None)
         return True
     
     def timer_print_stat(self, thread, arg):
-        now = time.time_ns()
+        now = time.time()*1000000000
         diff = (now-self.timestamp)/1000000000
         print ("So far: {} bytes Reads, {} bytes Writes, Rate Read {:.2f} bytes/sec, Rate Write {:.2f} bytes/sec ".format(self.counter_read_all, self.counter_send_all, self.counter_read_all/diff, self.counter_send_all/diff))
         self.counter_read_all = 0

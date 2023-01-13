@@ -54,7 +54,18 @@ import fcntl
 from threading import Thread
 from multiprocessing import Process
 from multiprocessing import Pipe
-#from systemd import journal
+
+try:
+    from systemd import journal
+    g_journal = True
+except:
+    g_journal = False
+
+try:
+    from time import time_ns
+    g_has_time_ns = True
+except:
+    g_has_time_ns = False
 
 """ This class stores the thread's data
     socket is only for read and write relevanr
@@ -128,7 +139,7 @@ class KPseudoThreads():
             return 
         if self.mpt_facility & KPseudoThreads.LOG_CONSOLE:
             print ("{}.{}:{}".format (self.mpt_name, self.mpt_level, msg))
-        if self.mpt_facility & KPseudoThreads.LOG_SYSLOG:
+        if g_journal and self.mpt_facility & KPseudoThreads.LOG_SYSLOG:
             journal.send("{}.{}:{}".format (self.mpt_name, self.mpt_level, msg))
     """ this function registers a read thread
         name - the name of the thread
@@ -199,7 +210,10 @@ class KPseudoThreads():
     """
     def add_timer_thread(self, name, after_ms, function, args):
         #return None
-        when = time.time_ns() + after_ms * 1000000
+        if g_has_time_ns:
+            when = time.time_ns() + after_ms * 1000000
+        else:
+            when = time.time()*1000000000 + after_ms * 1000000
         
         new_thread = KPseudoThread(self, name, KPseudoThread.TIMER, None, function, args, when)
 
@@ -331,7 +345,10 @@ class KPseudoThreads():
                     heapq.heappop(self.threads_timer)
                     continue
                 else:
-                    now = time.time_ns()
+                    if g_has_time_ns:
+                        now = time.time_ns()
+                    else:
+                        now = time.time()*1000000000
                     e_time = self.threads_timer[0].time
                     time_out = (e_time - now)/1000000000 
                     if time_out < 0:
@@ -396,7 +413,10 @@ class KPseudoThreads():
                 # we reached in the loop a thread that must not be executed now, but later. 
                 # since execution of the previous threads consume time - we update "now"
                 if now == None or now < e.time:
-                    now = time.time_ns()
+                    if g_has_time_ns:
+                        now = time.time_ns()
+                    else:
+                        now = time.time()*1000000000
                 # if thread is to be executed, else break
                 if (now >= e.time ):
                     if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Run t-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
@@ -414,7 +434,10 @@ class KPseudoThreads():
                 self.deleted_write_threads = 0
             """
             if True:
-                now = time.time_ns() * 1000 
+                if g_has_time_ns:
+                    now = time.time_ns()
+                else:
+                    now = time.time()*1000000000
                 self.Log(KPseudoThreads.LOG_DBG,"DUMP END R{} W{} E{} TIMER {}".format ([hex(id(t)) for t in self.threads_read] , [t.socket. for t in self.threads_write], [t.socket.for t in self.threads_exec], [t.time-now for t in self.threads_timer]))"""
 
 
@@ -488,7 +511,7 @@ class MyTask (KPseudoThreads, Process):
         We close the unised pipes (those are used from child - in childs context )
     """
     def start(self):
-        super().start()
+        super(MyTask, self).start()
         os.close(self.pipe_child_to_parent)
         os.close(self.pipe_child_from_parent)
 

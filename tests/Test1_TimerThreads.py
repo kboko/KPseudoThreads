@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 """
 MIT License
 
@@ -58,7 +58,7 @@ class TimerThreadTest_1(KPseudoThreads):
 
 		
 	def timer_fire(self, thread, arg):
-		now = time.time_ns()
+		now = time.time()*1000000000
 		self.all_threads_executed = self.all_threads_executed + 1
 		if DISPLAY: print (datetime.now(), thread.thread_name, "FIRE count=", thread.count, "Delayed = ", (now - thread.time)/1000000, "ms")
 		# record the max time

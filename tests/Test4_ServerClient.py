@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 """
 MIT License
 
@@ -31,9 +31,9 @@ from datetime import datetime
 """
     Starts client or server and send data
     Server:
-        python3 Test2_ServerClient.py server
+        python Test2_ServerClient.py server
     client:
-        python3 Test2_ServerClient.py 
+        python Test2_ServerClient.py 
     DISPLAY - show read/write thread executions
     Threads debug can be enabled - see KPseudoThreads constructor
 
@@ -55,11 +55,11 @@ class ServerClient():
         self.write_index = 0
         self.cl_counter_read_all = 0
         self.cl_counter_send_all = 0
-        self.cl_timestamp = time.time_ns()
+        self.cl_timestamp = time.time()*1000000000
         self.cl_timer_thr = self.parent.add_timer_thread("Print_statistic{}".format(self.addr), 5000, self.timer_client_print_stat, None)
          
     def timer_client_print_stat(self, thread, arg):
-        now = time.time_ns()
+        now = time.time()*1000000000
         diff = (now-self.cl_timestamp)/1000000000
         print ("So far CLIENT {} : {} bytes Reads, {} bytes Writes, Rate Read {:.2f} bytes/sec, Rate Write {:.2f} bytes/sec ".format(self.addr, self.cl_counter_read_all, self.cl_counter_send_all, self.cl_counter_read_all/diff, self.cl_counter_send_all/diff))
         self.cl_counter_read_all = 0
@@ -77,7 +77,7 @@ class Server(KPseudoThreads):
         self.counter_send_all = 0
         self.clients = []
         KPseudoThreads.__init__(self, "Server", KPseudoThreads.LOG_DBG, KPseudoThreads.LOG_CONSOLE)
-        self.timestamp = time.time_ns()
+        self.timestamp = time.time()*1000000000
     def init_server(self):
         for res in socket.getaddrinfo("127.0.0.1", PORT , socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE):
             af, socktype, proto, canonname, sa = res
@@ -101,7 +101,7 @@ class Server(KPseudoThreads):
         return True
     
     def timer_print_stat(self, thread, arg):
-        now = time.time_ns()
+        now = time.time()*1000000000
         diff = (now-self.timestamp)/1000000000
         print ("So far: {} bytes Reads, {} bytes Writes, Rate Read {:.2f} bytes/sec, Rate Write {:.2f} bytes/sec ".format(self.counter_read_all, self.counter_send_all, self.counter_read_all/diff, self.counter_send_all/diff))
         self.counter_read_all = 0
