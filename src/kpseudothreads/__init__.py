@@ -87,7 +87,7 @@ class KPseudoThread():
         self.function = function
         self.to_delete = False
         self.parent = parent
-    def __cmp__(self, other):
+    def __cmp__(self, b):
         return self.time - b.time
     def __lt__(self, b):
         return self.time < b.time
@@ -156,7 +156,7 @@ class KPseudoThreads():
         for item in self.threads_read:
             if item.socket == socket:
                 if item.to_delete != True:
-                    if self.mpt_debug: self.Log(KPseudoThreads.LOG_ERR,"{}: Read Thread exists for this fd {}".format(self.mpt_name, fd))
+                    if self.mpt_debug: self.Log(KPseudoThreads.LOG_ERR,"{}: Read Thread exists for this fd {}".format(self.mpt_name, socket))
                     return None
                 else:# reuse
                     item.thread_name = name
@@ -185,7 +185,7 @@ class KPseudoThreads():
         for item in self.threads_write:
             if item.socket == socket:
                 if item.to_delete != True:
-                    if self.mpt_debug: self.Log(KPseudoThreads.LOG_ERR,"{}: Write Thread exists for this fd {}".format(self.mpt_name, fd))
+                    if self.mpt_debug: self.Log(KPseudoThreads.LOG_ERR,"{}: Write Thread exists for this fd {}".format(self.mpt_name, socket))
                     return None
                 else:
                     item.thread_name = name
@@ -348,13 +348,13 @@ class KPseudoThreads():
                     if g_has_time_ns:
                         now = time.time_ns()
                     else:
-                        now = time.time()*1000000000
+                        now = int(time.time()*1000000000)
                     e_time = self.threads_timer[0].time
                     time_out = (e_time - now)/1000000000 
                     if time_out < 0:
                         time_out = 0
                     break
-                    """ self.Log(KPseudoThreads.LOG_DBG,"SELECT {} {} {} TIME {}".format ([t for t in inputs], [t for t in outputs], (e_time - now)/1000))"""
+                    
 
             # now Main Part - do select
             try:
@@ -416,7 +416,7 @@ class KPseudoThreads():
                     if g_has_time_ns:
                         now = time.time_ns()
                     else:
-                        now = time.time()*1000000000
+                        now = int(time.time()*1000000000)
                 # if thread is to be executed, else break
                 if (now >= e.time ):
                     if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Run t-thr {} {}".format(self.mpt_name, e.function.__name__,  hex(id(e))))
@@ -504,7 +504,7 @@ class MyTask (KPseudoThreads, Process):
         self.pipe_parent_from_child, self.pipe_child_to_parent = os.pipe()
 
         if self.mpt_debug: 
-            self.Log(KPseudoThreads.LOG_DBG, "{}: Created. Pipes Parent{}->Child{} Child{}->Parent{}".format(self.task_name, hex(id(self)) ,self.pipe_parent_to_child, \
+            self.Log(KPseudoThreads.LOG_DBG, "{}: Created:{}. Pipes Parent{}->Child{} Child{}->Parent{}".format(self.task_name, hex(id(self)) ,self.pipe_parent_to_child, \
                         self.pipe_child_from_parent, self.pipe_child_to_parent, self.pipe_parent_from_child))
     """
         This funciton starts spawning - we are still in parent context
@@ -580,7 +580,7 @@ class MyTask (KPseudoThreads, Process):
     """
     def run(self):
         
-        if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Started".format(self.task_name,  hex(id(self))))
+        if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG,"{}: Started {}".format(self.task_name,  hex(id(self))))
         # this thread is for messages from the Parent
         self.msg_from_parent_thread = self.add_read_thread (self.task_name, self.pipe_child_from_parent, self.__child_internal_msg_from_parent, self)
         
@@ -604,7 +604,7 @@ class MyTask (KPseudoThreads, Process):
         # call child funciton
         if (self.from_parent_hook and self.from_parent_hook (msg[1:]) == MyTask.MY_T_STOP) or msg == MyTask.MY_T_STOP:
             self.threads_stop()
-            if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: Stopping Child", self.task_name,)
+            if self.mpt_debug: self.Log(KPseudoThreads.LOG_DBG, "{}: Stopping Child".format (self.task_name))
         else:
             # add read thread again
             self.add_read_thread ("pipe_child_from_parent", self.pipe_child_from_parent, self.__child_internal_msg_from_parent, self)
